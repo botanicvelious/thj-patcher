@@ -38,9 +38,10 @@ jobs:
       uses: microsoft/setup-msbuild@v1.1.3
 
     - name: Create directories
+      shell: pwsh
       run: |
-        mkdir -p "rof"
-        mkdir -p "EQEmu Patcher/EQEmu Patcher/bin/Release"
+        New-Item -Path "rof" -ItemType Directory -Force
+        New-Item -Path "EQEmu Patcher/EQEmu Patcher/bin/Release" -ItemType Directory -Force
 
     - name: Restore NuGet packages
       working-directory: ${{env.GITHUB_WORKSPACE}}
