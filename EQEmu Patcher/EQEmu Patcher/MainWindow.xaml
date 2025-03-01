@@ -1,0 +1,190 @@
+<Window x:Class="EQEmu_Patcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:local="clr-namespace:EQEmu_Patcher"
+        mc:Ignorable="d"
+        Title="The Heroes Journey" Height="768" Width="1024"
+        WindowStyle="None" 
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        AllowsTransparency="True"
+        MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+        Background="Transparent"
+        TextElement.FontWeight="Regular"
+        TextElement.FontSize="13"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Auto"
+        FontFamily="{materialDesign:MaterialDesignFont}">
+    
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <materialDesign:CustomColorTheme BaseTheme="Dark" PrimaryColor="#FBE9A4" SecondaryColor="#B0A373"/>
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Custom Button Style -->
+            <Style x:Key="GoldButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                <Setter Property="Background" Value="#FBE9A4"/>
+                <Setter Property="Foreground" Value="Black"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#B0A373"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Custom TextBox Style -->
+            <Style x:Key="CustomTextBox" TargetType="TextBox" BasedOn="{StaticResource MaterialDesignTextBox}">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Foreground" Value="#FBE9A4"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="Transparent"/>
+                    </Trigger>
+                    <Trigger Property="IsFocused" Value="True">
+                        <Setter Property="Background" Value="Transparent"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="32"/>
+            <RowDefinition Height="2*"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Background Image -->
+        <Image Source="pack://application:,,,/Launcher_Window.png" Stretch="UniformToFill" Grid.RowSpan="4"/>
+
+        <!-- Hidden Controls (for functionality) -->
+        <Grid Grid.Row="0" Visibility="Collapsed">
+            <CheckBox x:Name="chkAutoPatch"
+                     Content="Auto Patch"
+                     Style="{StaticResource MaterialDesignCheckBox}"/>
+            
+            <CheckBox x:Name="chkAutoPlay"
+                     Content="Auto Play"
+                     Style="{StaticResource MaterialDesignCheckBox}"/>
+        </Grid>
+
+        <!-- Custom Title Bar -->
+        <Grid Grid.Row="0">
+            <Button x:Name="btnClose"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Height="32" Width="32"
+                    Padding="0"
+                    Click="CloseButton_Click"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Background="Transparent"
+                    BorderThickness="0">
+                <materialDesign:PackIcon Kind="Close" 
+                                       Height="20" 
+                                       Width="20" 
+                                       Foreground="White"/>
+            </Button>
+        </Grid>
+
+        <!-- Empty space for image -->
+        <Grid Grid.Row="1"/>
+
+        <!-- Sidebar Buttons -->
+        <StackPanel Grid.Row="2" 
+                    Orientation="Vertical" 
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="80,-200,0,0">
+            
+            <!-- Links Section -->
+            <StackPanel Margin="0,0,0,0">
+                <Button Content="THJ Website"
+                        Width="200"
+                        Height="50"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource GoldButton}"
+                        Click="LinkButton_Click"
+                        Tag="https://heroesjourneyemu.com/"/>
+                
+                <Button Content="THJDI Item Search"
+                        Width="200"
+                        Height="50"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource GoldButton}"
+                        Click="LinkButton_Click"
+                        Tag="https://www.thjdi.cc/"/>
+                
+                <Button Content="EQDB Item Search"
+                        Width="200"
+                        Height="50"
+                        Margin="0,0,0,150"
+                        Style="{StaticResource GoldButton}"
+                        Click="LinkButton_Click"
+                        Tag="https://eqdb.net/"/>
+            </StackPanel>
+
+            <Button x:Name="btnPatch"
+                    Content="PATCH"
+                    Margin="0,10,0,0"
+                    Width="200"
+                    Height="50"
+                    Visibility="Collapsed"
+                    Style="{StaticResource GoldButton}"/>
+
+            <Button x:Name="btnPlay"
+                    Content="PLAY"
+                    Margin="0,10,0,0"
+                    Width="200"
+                    Height="50"
+                    Visibility="Collapsed"
+                    Style="{StaticResource GoldButton}"/>
+        </StackPanel>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="2" Margin="310,-60,16,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Progress Section -->
+            <ProgressBar x:Name="progressBar" 
+                        Grid.Row="0"
+                        Height="4" 
+                        Margin="0,8"
+                        Style="{StaticResource MaterialDesignLinearProgressBar}"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Foreground="White"
+                        Value="0"/>
+
+            <!-- Log Section -->
+            <materialDesign:Card Grid.Row="1" Margin="0,8" Background="Transparent">
+                <Border BorderThickness="0" Background="Transparent">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBox x:Name="txtLog"
+                                TextWrapping="Wrap"
+                                VerticalAlignment="Stretch"
+                                IsReadOnly="True"
+                                Style="{StaticResource CustomTextBox}"
+                                materialDesign:TextFieldAssist.DecorationVisibility="Hidden"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Foreground="#FBE9A4"
+                                Padding="8"/>
+                    </ScrollViewer>
+                </Border>
+            </materialDesign:Card>
+        </Grid>
+    </Grid>
+</Window> 

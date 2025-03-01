@@ -63,7 +63,8 @@ namespace EQEmu_Patcher
             Console.WriteLine($"Current Directory: {Directory.GetCurrentDirectory()}");
             cts = new CancellationTokenSource();
 
-            serverName = Assembly.GetExecutingAssembly().GetCustomAttribute<ServerName>().Value;
+            //This needs to be in an Enviroment Variable
+            serverName = "The Heroes Journey";
 #if (DEBUG)
             serverName = "EQEMU Patcher";
 #endif
@@ -73,7 +74,7 @@ namespace EQEmu_Patcher
                 return;
             }
 
-            fileName = Assembly.GetExecutingAssembly().GetCustomAttribute<FileName>().Value;
+            fileName = "herosjourneyeq";
 #if (DEBUG)
             fileName = "eqemupatcher";
 #endif
@@ -84,9 +85,9 @@ namespace EQEmu_Patcher
                 return;
             }
 
-            filelistUrl = Assembly.GetExecutingAssembly().GetCustomAttribute<FileListUrl>().Value;
+            filelistUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
 #if (DEBUG)
-            filelistUrl = "https://github.com/xackery/eqemupatcher/releases/latest/download";
+            filelistUrl = "https://github.com/xackery/eqemupatcher/releases/latest/download/";
 #endif
             if (filelistUrl == "") {
                 MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the file list url is not provided or screenshot this message.", serverName);
@@ -95,7 +96,7 @@ namespace EQEmu_Patcher
             }
             if (!filelistUrl.EndsWith("/")) filelistUrl += "/";
 
-            patcherUrl = Assembly.GetExecutingAssembly().GetCustomAttribute<PatcherUrl>().Value;
+            patcherUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
 #if (DEBUG)
             patcherUrl = $"https://github.com/xackery/eqemupatcher/releases/latest/download/";
 #endif
@@ -171,7 +172,7 @@ namespace EQEmu_Patcher
             progressBar.Maximum = 10000;
             progressBar.Value = 0;
             StatusLibrary.SubscribeProgress(new StatusLibrary.ProgressHandler((int value) => {
-                Invoke((MethodInvoker)delegate {
+                Invoke((System.Windows.Forms.MethodInvoker)delegate {
                     progressBar.Value = value;
                     if (Environment.OSVersion.Version.Major < 6) {
                         return;
@@ -183,7 +184,7 @@ namespace EQEmu_Patcher
             }));
 
             StatusLibrary.SubscribeLogAdd(new StatusLibrary.LogAddHandler((string message) => {
-                Invoke((MethodInvoker)delegate {
+                Invoke((System.Windows.Forms.MethodInvoker)delegate {
                     if (!txtList.Visible)
                     {
                         txtList.Visible = true;
@@ -194,7 +195,7 @@ namespace EQEmu_Patcher
             }));
 
             StatusLibrary.SubscribePatchState(new StatusLibrary.PatchStateHandler((bool isPatchGoing) => {
-                Invoke((MethodInvoker)delegate {
+                Invoke((System.Windows.Forms.MethodInvoker)delegate {
 
                     btnCheck.BackColor = SystemColors.Control;
                     if (isPatchGoing)

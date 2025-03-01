@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -33,8 +33,13 @@ namespace EQEmu_Patcher
         {
             mux.WaitOne();
             progressValue = value;
-            progressChange?.BeginInvoke(value, null, null);
+            var handler = progressChange;
             mux.ReleaseMutex();
+
+            if (handler != null)
+            {
+                Task.Run(() => handler.Invoke(value));
+            }
         }
 
         public static void SubscribeProgress(ProgressHandler f)
@@ -47,8 +52,13 @@ namespace EQEmu_Patcher
         public static void Log(string message)
         {
             mux.WaitOne();
-            logAddChange?.BeginInvoke(message, null, null);
+            var handler = logAddChange;
             mux.ReleaseMutex();
+
+            if (handler != null)
+            {
+                Task.Run(() => handler.Invoke(message));
+            }
         }
 
         public static void SubscribeLogAdd(LogAddHandler f)
@@ -61,8 +71,13 @@ namespace EQEmu_Patcher
         public static void SetPatchState(bool isPatching)
         {
             mux.WaitOne();
-            patchStateChange?.BeginInvoke(isPatching, null, null);
+            var handler = patchStateChange;
             mux.ReleaseMutex();
+
+            if (handler != null)
+            {
+                Task.Run(() => handler.Invoke(isPatching));
+            }
         }
 
         public static void SubscribePatchState(PatchStateHandler f)

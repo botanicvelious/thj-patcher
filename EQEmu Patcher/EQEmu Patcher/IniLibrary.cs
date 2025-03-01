@@ -17,16 +17,19 @@ namespace EQEmu_Patcher
         public string AutoPlay { get; set; }
         public VersionTypes ClientVersion { get; set; }
         public string LastPatchedVersion { get; set; }
-
+        public string PatcherUrl { get; set; }
+        public string FileName { get; set; }
+        public string Version { get; set; }
 
         public static void Save()
         {
-            var serializerBuilder = new SerializerBuilder().WithNamingConvention(new CamelCaseNamingConvention());
-            var serializer = serializerBuilder.Build();
-            string body = serializer.Serialize(instance);
-
-            Console.WriteLine(body);
-            File.WriteAllText($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}\\eqemupatcher.yml", body);
+            using (var writer = File.CreateText($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}\\eqemupatcher.yml"))
+            {
+                var serializer = new SerializerBuilder()
+                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                    .Build();
+                serializer.Serialize(writer, instance);
+            }
         }
 
         public static void Load()
@@ -34,10 +37,9 @@ namespace EQEmu_Patcher
             try {
                 using (var input = File.OpenText($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}\\eqemupatcher.yml"))
                 {
-                    var deserializerBuilder = new DeserializerBuilder().WithNamingConvention(new CamelCaseNamingConvention());
-
-                    var deserializer = deserializerBuilder.Build();
-
+                    var deserializer = new DeserializerBuilder()
+                        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                        .Build();
                     instance = deserializer.Deserialize<IniLibrary>(input);
                 }
 
@@ -53,6 +55,9 @@ namespace EQEmu_Patcher
 
             if (instance.AutoPatch == null) instance.AutoPatch = "false";
             if (instance.AutoPlay == null) instance.AutoPlay = "false";
+            if (instance.PatcherUrl == null) instance.PatcherUrl = "";
+            if (instance.FileName == null) instance.FileName = "";
+            if (instance.Version == null) instance.Version = "1.0.0";
         }
 
         public static void ResetDefaults()
@@ -60,6 +65,9 @@ namespace EQEmu_Patcher
             instance = new IniLibrary();
             instance.AutoPlay = "false";
             instance.AutoPatch = "false";
+            instance.PatcherUrl = "";
+            instance.FileName = "";
+            instance.Version = "1.0.0";
         }
     }
 }

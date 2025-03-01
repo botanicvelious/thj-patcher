@@ -1,15 +1,8 @@
 {
   "name": "eqemupatcher",
   "version": "1.0.0",
-  "description": "Patcher for The Heroes' Journey",
-  "main": "nexus.js",
-  "type": "module",
+  "description": "EQEmu Patcher",
   "scripts": {
-    "start": "node nexus.js"
-  },
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "xxhash-wasm": "^1.0.2"
+    "start": "echo No manifest generation needed"
   }
 }

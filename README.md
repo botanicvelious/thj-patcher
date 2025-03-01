@@ -1,6 +1,23 @@
-# EQEmuPatcher
+# EQEmu Patcher
 
-EQEmu File Comparison and Patcher
+A custom patcher for EverQuest using WPF.
+
+## Building
+
+1. Clone the repository
+2. Open the solution in Visual Studio
+3. Build the solution
+
+## Configuration
+
+The patcher is configured with the following hardcoded values:
+- Server Name: The Heroes Journey
+- File Name: heroesjourneyeq
+- File List URL: https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/
+- Patcher URL: https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/
+- Storage URL: https://patch.heroesjourneyemu.com/rof/
+
+# EQEmu File Comparison and Patcher
 
 ![alt tag](http://i.imgur.com/FSVgkzh.png)
 ---

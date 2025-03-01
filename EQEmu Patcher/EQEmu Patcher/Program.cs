@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace EQEmu_Patcher
 {
-    static class Program
+    internal static class Program
     {
         /// <summary>
         /// The main entry point for the application.
@@ -14,9 +10,9 @@ namespace EQEmu_Patcher
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            var application = new System.Windows.Application();
+            application.StartupUri = new Uri("MainWindow.xaml", UriKind.Relative);
+            application.Run();
         }
     }
 }
