@@ -14,6 +14,7 @@ env:
   FILELIST_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
   PATCHER_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
   STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
+  BUILD_PATH: "EQEmu Patcher/EQEmu Patcher/bin/Release/net8.0-windows/win-x64"
 
 jobs:
   build:
@@ -41,7 +42,7 @@ jobs:
       shell: pwsh
       run: |
         New-Item -Path "rof" -ItemType Directory -Force
-        New-Item -Path "EQEmu Patcher/EQEmu Patcher/bin/Release" -ItemType Directory -Force
+        New-Item -Path "${{env.BUILD_PATH}}" -ItemType Directory -Force
 
     - name: Restore NuGet packages
       working-directory: ${{env.GITHUB_WORKSPACE}}
@@ -56,17 +57,18 @@ jobs:
       shell: pwsh
       run: |
         Write-Host "Checking Release directory contents:"
-        Get-ChildItem -Path "EQEmu Patcher\EQEmu Patcher\bin\Release" -Recurse | ForEach-Object {
+        Get-ChildItem -Path "${{env.BUILD_PATH}}" -Recurse | ForEach-Object {
             Write-Host $_.FullName
         }
         
         # Create a copy of the executable with the correct name
-        $sourceExe = Get-ChildItem -Path "EQEmu Patcher\EQEmu Patcher\bin\Release" -Filter "*.exe" | Select-Object -First 1
+        $sourceExe = Get-ChildItem -Path "${{env.BUILD_PATH}}" -Filter "TestingName.exe" | Select-Object -First 1
         if ($sourceExe) {
             Write-Host "Found executable: $($sourceExe.Name)"
-            Copy-Item -Path $sourceExe.FullName -Destination "EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe" -Force
+            Copy-Item -Path $sourceExe.FullName -Destination "${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe" -Force
         } else {
             Write-Host "No executable found in Release directory!"
+            Get-ChildItem -Path "${{env.BUILD_PATH}}" -Filter "*.exe"
             exit 1
         }
 
@@ -76,16 +78,15 @@ jobs:
         Set-Location -Path "rof"
         Invoke-WebRequest -Uri "https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe" -OutFile "filelistbuilder-win-x64.exe"
         
-        Write-Host "Verifying TestingName.exe exists:"
-        if (Test-Path "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe") {
-            Write-Host "TestingName.exe found"
+        Write-Host "Verifying executable exists:"
+        if (Test-Path "..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe") {
+            Write-Host "${{env.FILE_NAME}}.exe found"
         } else {
-            Write-Host "TestingName.exe not found!"
+            Write-Host "${{env.FILE_NAME}}.exe not found!"
             exit 1
         }
         
-        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe"
-        Copy-Item "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe" "..\EQEmu Patcher\EQEmu Patcher\bin\Release\${{env.FILE_NAME}}.exe" -Force
+        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
         Move-Item "eqemupatcher-hash.txt" "${{env.FILE_NAME}}-hash.txt" -Force
   
     - name: Release
@@ -97,7 +98,7 @@ jobs:
         prerelease: false
         title: "${{ env.VERSION }}.${{ github.run_number }}"
         files: |
-          EQEmu Patcher/EQEmu Patcher/bin/Release/${{env.FILE_NAME}}.exe
+          ${{env.BUILD_PATH}}/${{env.FILE_NAME}}.exe
           rof/filelist_rof.yml
           rof/${{env.FILE_NAME}}-hash.txt
           manifest.json
