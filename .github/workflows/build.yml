@@ -53,16 +53,40 @@ jobs:
         cd "EQEmu Patcher" && msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}" "EQEmu Patcher.sln"
 
     - name: Verify build output
+      shell: pwsh
       run: |
-        dir "EQEmu Patcher\EQEmu Patcher\bin\Release"
+        Write-Host "Checking Release directory contents:"
+        Get-ChildItem -Path "EQEmu Patcher\EQEmu Patcher\bin\Release" -Recurse | ForEach-Object {
+            Write-Host $_.FullName
+        }
+        
+        # Create a copy of the executable with the correct name
+        $sourceExe = Get-ChildItem -Path "EQEmu Patcher\EQEmu Patcher\bin\Release" -Filter "*.exe" | Select-Object -First 1
+        if ($sourceExe) {
+            Write-Host "Found executable: $($sourceExe.Name)"
+            Copy-Item -Path $sourceExe.FullName -Destination "EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe" -Force
+        } else {
+            Write-Host "No executable found in Release directory!"
+            exit 1
+        }
 
     - name: Generate filelist
+      shell: pwsh
       run: |
-        cd "rof"
-        C:\msys64\usr\bin\wget.exe --no-verbose https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe
+        Set-Location -Path "rof"
+        Invoke-WebRequest -Uri "https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe" -OutFile "filelistbuilder-win-x64.exe"
+        
+        Write-Host "Verifying TestingName.exe exists:"
+        if (Test-Path "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe") {
+            Write-Host "TestingName.exe found"
+        } else {
+            Write-Host "TestingName.exe not found!"
+            exit 1
+        }
+        
         .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe"
-        copy "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe" "..\EQEmu Patcher\EQEmu Patcher\bin\Release\${{env.FILE_NAME}}.exe"
-        move eqemupatcher-hash.txt ${{env.FILE_NAME}}-hash.txt
+        Copy-Item "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe" "..\EQEmu Patcher\EQEmu Patcher\bin\Release\${{env.FILE_NAME}}.exe" -Force
+        Move-Item "eqemupatcher-hash.txt" "${{env.FILE_NAME}}-hash.txt" -Force
   
     - name: Release
       uses: "marvinpinto/action-automatic-releases@latest"
