@@ -37,6 +37,11 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.1.3
 
+    - name: Create directories
+      run: |
+        mkdir -p "rof"
+        mkdir -p "EQEmu Patcher/EQEmu Patcher/bin/Release"
+
     - name: Restore NuGet packages
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: cd "EQEmu Patcher" && nuget restore "EQEmu Patcher.sln"
@@ -46,12 +51,16 @@ jobs:
       run: |
         cd "EQEmu Patcher" && msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}" "EQEmu Patcher.sln"
 
+    - name: Verify build output
+      run: |
+        dir "EQEmu Patcher\EQEmu Patcher\bin\Release"
+
     - name: Generate filelist
       run: |
         cd "rof"
         C:\msys64\usr\bin\wget.exe --no-verbose https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe
-        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../EQEmu Patcher/EQEmu Patcher/bin/Release/eqemupatcher.exe"
-        move "../EQEmu Patcher/EQEmu Patcher/bin/Release/eqemupatcher.exe" "../EQEmu Patcher/EQEmu Patcher/bin/Release/${{env.FILE_NAME}}.exe"
+        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe"
+        copy "..\EQEmu Patcher\EQEmu Patcher\bin\Release\TestingName.exe" "..\EQEmu Patcher\EQEmu Patcher\bin\Release\${{env.FILE_NAME}}.exe"
         move eqemupatcher-hash.txt ${{env.FILE_NAME}}-hash.txt
   
     - name: Release
