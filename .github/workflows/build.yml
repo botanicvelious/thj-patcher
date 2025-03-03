@@ -71,7 +71,7 @@ jobs:
         }
         
         # Create a copy of the executable with the correct name
-        $sourceExe = Get-ChildItem -Path "${{env.BUILD_PATH}}" -Filter "TestingName.exe" | Select-Object -First 1
+        $sourceExe = Get-ChildItem -Path "${{env.BUILD_PATH}}" -Filter "THJPatcher.exe" | Select-Object -First 1
         if ($sourceExe) {
             Write-Host "Found executable: $($sourceExe.Name)"
             Copy-Item -Path $sourceExe.FullName -Destination "${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe" -Force
