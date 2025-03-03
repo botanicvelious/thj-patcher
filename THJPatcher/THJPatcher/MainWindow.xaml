@@ -27,6 +27,17 @@
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!-- Custom Tooltip Style -->
+            <Style TargetType="ToolTip" BasedOn="{StaticResource MaterialDesignToolTip}">
+                <Setter Property="Background" Value="#1A1A2E"/>
+                <Setter Property="Foreground" Value="#FBE9A4"/>
+                <Setter Property="BorderBrush" Value="#FBE9A4"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="8"/>
+                <Setter Property="materialDesign:ShadowAssist.ShadowDepth" Value="Depth1"/>
+                <Setter Property="FontSize" Value="12"/>
+            </Style>
+
             <!-- Custom Button Style -->
             <Style x:Key="GoldButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                 <Setter Property="Background" Value="#FBE9A4"/>
@@ -127,10 +138,27 @@
                 <Button Content="EQDB Item Search"
                         Width="200"
                         Height="50"
-                        Margin="0,0,0,150"
+                        Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
                         Tag="https://eqdb.net/"/>
+
+                <Button Content="DirectX 9"
+                        Width="200"
+                        Height="50"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource GoldButton}"
+                        Click="LinkButton_Click"
+                        ToolTip="Download DirectX 9 from Microsoft (required for EverQuest)"
+                        Tag="https://download.microsoft.com/download/1/7/1/1718CCC4-6315-4D8E-9543-8E28A4E18C4C/dxwebsetup.exe"/>
+
+                <Button x:Name="btnOptimizations"
+                        Content="Optimizations"
+                        Width="200"
+                        Height="50"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource GoldButton}"
+                        Click="OptimizationsButton_Click"/>
             </StackPanel>
 
             <Button x:Name="btnPatch"
@@ -169,7 +197,7 @@
                         Value="0"/>
 
             <!-- Log Section -->
-            <materialDesign:Card Grid.Row="1" Margin="0,8" Background="Transparent">
+            <materialDesign:Card x:Name="logPanel" Grid.Row="1" Margin="0,8" Background="Transparent">
                 <Border BorderThickness="0" Background="Transparent">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <TextBox x:Name="txtLog"
@@ -184,6 +212,43 @@
                                 Padding="8"/>
                     </ScrollViewer>
                 </Border>
+            </materialDesign:Card>
+
+            <!-- Optimizations Panel -->
+            <materialDesign:Card x:Name="optimizationsPanel" 
+                               Grid.Row="1" 
+                               Margin="0,8" 
+                               Background="Transparent" 
+                               Visibility="Collapsed">
+                <Grid>
+                    <Button x:Name="btnCloseOptimizations"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="32" Width="32"
+                            Padding="0"
+                            Click="CloseOptimizations_Click"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Margin="0,8,8,0">
+                        <materialDesign:PackIcon Kind="Close" 
+                                               Height="20" 
+                                               Width="20" 
+                                               Foreground="#FBE9A4"/>
+                    </Button>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                Margin="0,40,0,0">
+                        <WrapPanel Orientation="Horizontal" Margin="8">
+                            <Button Content="4GB Patch"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="Apply4GBPatch_Click"
+                                    ToolTip="Enables EverQuest to use up to 4GB of RAM on 64-bit systems. Creates a backup of the original file before patching."/>
+                       </WrapPanel>
+                    </ScrollViewer>
+                </Grid>
             </materialDesign:Card>
         </Grid>
     </Grid>

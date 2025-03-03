@@ -133,6 +133,196 @@ namespace THJPatcher
             }
         }
 
+        private void OptimizationsButton_Click(object sender, RoutedEventArgs e)
+        {
+            logPanel.Visibility = Visibility.Collapsed;
+            optimizationsPanel.Visibility = Visibility.Visible;
+        }
+
+        private void CloseOptimizations_Click(object sender, RoutedEventArgs e)
+        {
+            optimizationsPanel.Visibility = Visibility.Collapsed;
+            logPanel.Visibility = Visibility.Visible;
+        }
+
+        private void Apply4GBPatch_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string eqExePath = Path.Combine(eqPath, "eqgame.exe");
+
+                if (!File.Exists(eqExePath))
+                {
+                    MessageBox.Show("Could not find eqgame.exe", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (Utilities.PEModifier.Apply4GBPatch(eqExePath))
+                {
+                    MessageBox.Show("Successfully applied 4GB patch. A backup of the original file has been created as eqgame.exe.bak", 
+                        "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Failed to apply 4GB patch. The file may already be patched or is not compatible.", 
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error applying 4GB patch: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void FixUIScale_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string eqcfgPath = Path.Combine(eqPath, "eqclient.ini");
+
+                if (File.Exists(eqcfgPath))
+                {
+                    var lines = File.ReadAllLines(eqcfgPath);
+                    bool found = false;
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        if (lines[i].StartsWith("UIScale="))
+                        {
+                            lines[i] = "UIScale=1.0";
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        Array.Resize(ref lines, lines.Length + 1);
+                        lines[lines.Length - 1] = "UIScale=1.0";
+                    }
+
+                    File.WriteAllLines(eqcfgPath, lines);
+                    MessageBox.Show("UI Scale has been set to 1.0", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("eqclient.ini not found", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error fixing UI scale: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void OptimizeGraphics_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string eqcfgPath = Path.Combine(eqPath, "eqclient.ini");
+
+                if (File.Exists(eqcfgPath))
+                {
+                    var lines = File.ReadAllLines(eqcfgPath);
+                    var optimizations = new Dictionary<string, string>
+                    {
+                        { "MaxFPS=", "MaxFPS=60" },
+                        { "MaxBackgroundFPS=", "MaxBackgroundFPS=60" },
+                        { "WaterReflections=", "WaterReflections=0" },
+                        { "ParticleDensity=", "ParticleDensity=1000" },
+                        { "SpellParticleDensity=", "SpellParticleDensity=1000" },
+                        { "EnableVSync=", "EnableVSync=0" }
+                    };
+
+                    bool[] found = new bool[optimizations.Count];
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        foreach (var opt in optimizations)
+                        {
+                            if (lines[i].StartsWith(opt.Key))
+                            {
+                                lines[i] = opt.Value;
+                                found[Array.IndexOf(optimizations.Keys.ToArray(), opt.Key)] = true;
+                            }
+                        }
+                    }
+
+                    var notFound = optimizations.Where((kvp, index) => !found[index]);
+                    if (notFound.Any())
+                    {
+                        Array.Resize(ref lines, lines.Length + notFound.Count());
+                        int index = lines.Length - notFound.Count();
+                        foreach (var opt in notFound)
+                        {
+                            lines[index++] = opt.Value;
+                        }
+                    }
+
+                    File.WriteAllLines(eqcfgPath, lines);
+                    MessageBox.Show("Graphics settings have been optimized", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("eqclient.ini not found", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error optimizing graphics: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ClearCache_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string[] cacheDirs = { "dbstr", "maps" };
+
+                foreach (string dir in cacheDirs)
+                {
+                    string path = Path.Combine(eqPath, dir);
+                    if (Directory.Exists(path))
+                    {
+                        Directory.Delete(path, true);
+                        Directory.CreateDirectory(path);
+                    }
+                }
+
+                MessageBox.Show("Cache has been cleared", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error clearing cache: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ResetSettings_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string[] configFiles = { "eqclient.ini", "eqclient_local.ini" };
+
+                foreach (string file in configFiles)
+                {
+                    string path = Path.Combine(eqPath, file);
+                    if (File.Exists(path))
+                    {
+                        File.Delete(path);
+                    }
+                }
+
+                MessageBox.Show("Settings have been reset. They will be recreated when you next launch EverQuest.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error resetting settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             isLoading = true;
