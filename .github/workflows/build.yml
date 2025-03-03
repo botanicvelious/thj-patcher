@@ -18,7 +18,7 @@ env:
   FILELIST_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
   PATCHER_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
   STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
-  BUILD_PATH: "EQEmu Patcher/EQEmu Patcher/bin/Release/net8.0-windows/win-x64"
+  BUILD_PATH: "THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64"
 
 jobs:
   build:
@@ -55,12 +55,12 @@ jobs:
 
     - name: Restore NuGet packages
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: cd "EQEmu Patcher" && nuget restore "EQEmu Patcher.sln"
+      run: cd "THJPatcher" && nuget restore "THJPatcher.sln"
 
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: |
-        cd "EQEmu Patcher" && msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}" "EQEmu Patcher.sln"
+        cd "THJPatcher" && msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}" "THJPatcher.sln"
 
     - name: Verify build output
       shell: pwsh

@@ -1,7 +1,7 @@
 {
-  "name": "eqemupatcher",
+  "name": "thjpatcher",
   "version": "1.0.0",
-  "description": "EQEmu Patcher",
+  "description": "The Heroes Journey Patcher",
   "scripts": {
     "start": "echo No manifest generation needed"
   }

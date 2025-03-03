@@ -1,6 +1,6 @@
-# EQEmu Patcher
+# THJPatcher
 
-A custom patcher for EverQuest using WPF.
+A custom patcher for The Heroes Journey EverQuest server using WPF.
 
 ## Building
 
@@ -11,11 +11,24 @@ A custom patcher for EverQuest using WPF.
 ## Configuration
 
 The patcher is configured with the following hardcoded values:
+
 - Server Name: The Heroes Journey
 - File Name: heroesjourneyeq
 - File List URL: https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/
 - Patcher URL: https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/
 - Storage URL: https://patch.heroesjourneyemu.com/rof/
+
+## Client Setup
+
+After building the patcher, copy `heroesjourneyeq.exe` to your EverQuest directory (where `eqgame.exe` is located). The patcher will automatically check for updates and patch your client as needed.
+
+## Custom Splash Screen
+
+You can customize the splash screen by creating a 400x450 png file named `thjpatcher.png` and placing it in the same directory as the patcher.
+
+## Configuration File
+
+The patcher uses a configuration file named `thjpatcher.yml` to store settings like auto-play preferences. This file is automatically created when needed.
 
 # EQEmu File Comparison and Patcher
 
