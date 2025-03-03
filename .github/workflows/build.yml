@@ -15,8 +15,8 @@ env:
   BUILD_CONFIGURATION: Release
   SERVER_NAME: "The Heroes Journey"
   FILE_NAME: "heroesjourneyeq"
-  FILELIST_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
-  PATCHER_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
+  FILELIST_URL: "https://github.com/BND10706/THJ-Patcher/releases/latest/download/"
+  PATCHER_URL: "https://github.com/BND10706/THJ-Patcher/releases/latest/download/"
   STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
   BUILD_PATH: "THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish"
 
