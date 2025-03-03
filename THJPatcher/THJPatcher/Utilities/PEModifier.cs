@@ -24,7 +24,7 @@ namespace THJPatcher.Utilities
         {
             public ushort Machine;
             public ushort NumberOfSections;
-            public uint TimeDateStamp;/q
+            public uint TimeDateStamp;
             public uint PointerToSymbolTable;
             public uint NumberOfSymbols;
             public ushort SizeOfOptionalHeader;
