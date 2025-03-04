@@ -87,32 +87,63 @@ jobs:
         Set-Location -Path "rof"
         Invoke-WebRequest -Uri "https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe" -OutFile "filelistbuilder-win-x64.exe"
         
-        Write-Host "Verifying executable exists:"
-        if (Test-Path "..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe") {
-            Write-Host "${{env.FILE_NAME}}.exe found"
+        Write-Host "=== Debug: Current Directory ==="
+        Get-Location
+        Write-Host "=== Debug: Directory Contents ==="
+        Get-ChildItem
+        
+        Write-Host "=== Debug: Verifying Executable ==="
+        $exePath = "..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
+        Write-Host "Looking for executable at: $exePath"
+        if (Test-Path $exePath) {
+            Write-Host "Executable found!"
+            Write-Host "File size: $((Get-Item $exePath).Length) bytes"
+            Write-Host "Last modified: $((Get-Item $exePath).LastWriteTime)"
         } else {
-            Write-Host "${{env.FILE_NAME}}.exe not found!"
+            Write-Host "Executable not found!"
+            Write-Host "Parent directory contents:"
+            Get-ChildItem (Split-Path $exePath -Parent)
             exit 1
         }
         
-        # Run filelistbuilder with direct arguments
-        Write-Host "Running filelistbuilder with arguments..."
-        Write-Host "Client: rof"
-        Write-Host "Download prefix: ${{env.STORAGE_URL}}"
-        Write-Host "Hash file: ${{env.FILE_NAME}}-hash.txt"
-        Write-Host "Exe path: ..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
+        Write-Host "=== Debug: Running FilelistBuilder ==="
+        Write-Host "Arguments being passed:"
+        Write-Host "1. -client=rof"
+        Write-Host "2. -downloadprefix=${{env.STORAGE_URL}}"
+        Write-Host "3. -hashfile=${{env.FILE_NAME}}-hash.txt"
+        Write-Host "4. -exePath=$exePath"
         
-        .\filelistbuilder-win-x64.exe -client="rof" -downloadprefix="${{env.STORAGE_URL}}" -hashfile="${{env.FILE_NAME}}-hash.txt" -exePath="..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
+        # Try running with each argument separately first
+        Write-Host "=== Debug: Testing Arguments Individually ==="
+        Write-Host "Testing -client argument..."
+        .\filelistbuilder-win-x64.exe -client=rof
         
-        # Verify the hash file was created
+        Write-Host "Testing -downloadprefix argument..."
+        .\filelistbuilder-win-x64.exe -downloadprefix="${{env.STORAGE_URL}}"
+        
+        Write-Host "Testing -hashfile argument..."
+        .\filelistbuilder-win-x64.exe -hashfile="${{env.FILE_NAME}}-hash.txt"
+        
+        Write-Host "Testing -exePath argument..."
+        .\filelistbuilder-win-x64.exe -exePath="$exePath"
+        
+        Write-Host "=== Debug: Running Full Command ==="
+        # Now try the full command with escaped quotes
+        $cmd = ".\filelistbuilder-win-x64.exe -client=rof -downloadprefix=`"${{env.STORAGE_URL}}`" -hashfile=`"${{env.FILE_NAME}}-hash.txt`" -exePath=`"$exePath`""
+        Write-Host "Full command: $cmd"
+        Invoke-Expression $cmd
+        
+        Write-Host "=== Debug: Checking Results ==="
         if (Test-Path "${{env.FILE_NAME}}-hash.txt") {
-            Write-Host "Hash file generated successfully"
+            Write-Host "Hash file generated successfully!"
             Write-Host "Hash file contents:"
             Get-Content "${{env.FILE_NAME}}-hash.txt"
         } else {
             Write-Host "Failed to generate hash file!"
-            Write-Host "Contents of current directory:"
+            Write-Host "Current directory contents:"
             Get-ChildItem
+            Write-Host "Parent directory contents:"
+            Get-ChildItem ..
             exit 1
         }
 
