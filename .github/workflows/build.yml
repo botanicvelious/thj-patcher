@@ -96,11 +96,7 @@ jobs:
         }
         
         # Create a temporary filelistbuilder.yml with the correct hash file name
-        Set-Content -Path "filelistbuilder.yml" -Value "downloadprefix: ${{env.STORAGE_URL}}`nhashfile: ${{env.FILE_NAME}}-hash.txt"
-        
-        # Set environment variables for filelistbuilder
-        $env:FILELISTBUILDER_CONFIG = "filelistbuilder.yml"
-        $env:FILELISTBUILDER_CLIENT = "rof"
+        Set-Content -Path "filelistbuilder.yml" -Value "downloadprefix: ${{env.STORAGE_URL}}`nhashfile: ${{env.FILE_NAME}}-hash.txt`nclient: rof"
         
         # Run filelistbuilder
         .\filelistbuilder-win-x64.exe
