@@ -95,11 +95,14 @@ jobs:
             exit 1
         }
         
-        # Create a temporary filelistbuilder.yml with the correct hash file name
-        Set-Content -Path "filelistbuilder.yml" -Value "downloadprefix: ${{env.STORAGE_URL}}`nhashfile: ${{env.FILE_NAME}}-hash.txt`nclient: rof`nexePath: ..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
+        # Run filelistbuilder with direct arguments
+        Write-Host "Running filelistbuilder with arguments:"
+        Write-Host "Client: rof"
+        Write-Host "Download prefix: ${{env.STORAGE_URL}}"
+        Write-Host "Hash file: ${{env.FILE_NAME}}-hash.txt"
+        Write-Host "Exe path: ..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
         
-        # Run filelistbuilder
-        .\filelistbuilder-win-x64.exe
+        .\filelistbuilder-win-x64.exe -client=rof -downloadprefix="${{env.STORAGE_URL}}" -hashfile="${{env.FILE_NAME}}-hash.txt" -exePath="..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
         
         # Verify the hash file was created
         if (Test-Path "${{env.FILE_NAME}}-hash.txt") {
