@@ -117,12 +117,7 @@ jobs:
         Set-Location -Path "rof"
         
         # Create a minimal YAML config file
-        $configContent = @"
-client: rof
-downloadprefix: ${{env.STORAGE_URL}}
-hashfile: ${{env.FILE_NAME}}-hash.txt
-exePath: $exePath
-"@
+        $configContent = "client: rof`ndownloadprefix: ${{env.STORAGE_URL}}`nhashfile: ${{env.FILE_NAME}}-hash.txt`nexePath: $exePath"
         Set-Content -Path "filelistbuilder.yml" -Value $configContent
         
         Write-Host "=== Debug: Config File Contents ==="
