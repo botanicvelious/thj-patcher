@@ -84,13 +84,20 @@ jobs:
     - name: Generate filelist
       shell: pwsh
       run: |
-        Set-Location -Path "rof"
-        Invoke-WebRequest -Uri "https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe" -OutFile "filelistbuilder-win-x64.exe"
+        # Create a clean test directory
+        Remove-Item -Path "rof" -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -Path "rof" -ItemType Directory -Force
+        
+        # Download filelistbuilder
+        Invoke-WebRequest -Uri "https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe" -OutFile "rof/filelistbuilder-win-x64.exe"
+        
+        # Create a minimal test file
+        Set-Content -Path "rof/test.txt" -Value "This is a test file for debugging"
         
         Write-Host "=== Debug: Current Directory ==="
         Get-Location
         Write-Host "=== Debug: Directory Contents ==="
-        Get-ChildItem
+        Get-ChildItem -Path "rof"
         
         Write-Host "=== Debug: Verifying Executable ==="
         $exePath = "..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
@@ -106,37 +113,23 @@ jobs:
             exit 1
         }
         
-        # Create a minimal test file
-        Write-Host "Creating test file..."
-        $testContent = "This is a test file for debugging"
-        Set-Content -Path "test.txt" -Value $testContent
+        Write-Host "=== Debug: Running FilelistBuilder ==="
+        Set-Location -Path "rof"
+        
+        # Create a minimal YAML config file
+        $configContent = @"
+client: rof
+downloadprefix: ${{env.STORAGE_URL}}
+hashfile: ${{env.FILE_NAME}}-hash.txt
+exePath: $exePath
+"@
+        Set-Content -Path "filelistbuilder.yml" -Value $configContent
+        
+        Write-Host "=== Debug: Config File Contents ==="
+        Get-Content "filelistbuilder.yml"
         
         Write-Host "=== Debug: Running FilelistBuilder ==="
-        Write-Host "Arguments being passed:"
-        Write-Host "1. -client=rof"
-        Write-Host "2. -downloadprefix=${{env.STORAGE_URL}}"
-        Write-Host "3. -hashfile=${{env.FILE_NAME}}-hash.txt"
-        Write-Host "4. -exePath=$exePath"
-        
-        # Try running with each argument separately first
-        Write-Host "=== Debug: Testing Arguments Individually ==="
-        Write-Host "Testing -client argument..."
-        .\filelistbuilder-win-x64.exe -client=rof
-        
-        Write-Host "Testing -downloadprefix argument..."
-        .\filelistbuilder-win-x64.exe -downloadprefix="${{env.STORAGE_URL}}"
-        
-        Write-Host "Testing -hashfile argument..."
-        .\filelistbuilder-win-x64.exe -hashfile="${{env.FILE_NAME}}-hash.txt"
-        
-        Write-Host "Testing -exePath argument..."
-        .\filelistbuilder-win-x64.exe -exePath="$exePath"
-        
-        Write-Host "=== Debug: Running Full Command ==="
-        # Now try the full command with escaped quotes
-        $cmd = ".\filelistbuilder-win-x64.exe -client=rof -downloadprefix=`"${{env.STORAGE_URL}}`" -hashfile=`"${{env.FILE_NAME}}-hash.txt`" -exePath=`"$exePath`""
-        Write-Host "Full command: $cmd"
-        Invoke-Expression $cmd
+        .\filelistbuilder-win-x64.exe -config filelistbuilder.yml
         
         Write-Host "=== Debug: Checking Results ==="
         if (Test-Path "${{env.FILE_NAME}}-hash.txt") {
@@ -147,8 +140,6 @@ jobs:
             Write-Host "Failed to generate hash file!"
             Write-Host "Current directory contents:"
             Get-ChildItem
-            Write-Host "Parent directory contents:"
-            Get-ChildItem ..
             exit 1
         }
 
