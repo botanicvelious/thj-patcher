@@ -100,7 +100,7 @@ jobs:
         Get-ChildItem -Path "rof"
         
         Write-Host "=== Debug: Verifying Executable ==="
-        $exePath = "${{env.GITHUB_WORKSPACE}}/THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe"
+        $exePath = "D:\a\THJ-Patcher\THJ-Patcher\THJPatcher\THJPatcher\bin\Release\net8.0-windows\win-x64\publish\${{env.FILE_NAME}}.exe"
         Write-Host "Looking for executable at: $exePath"
         if (Test-Path $exePath) {
             Write-Host "Executable found!"
@@ -111,7 +111,7 @@ jobs:
             Write-Host "Parent directory contents:"
             Get-ChildItem (Split-Path $exePath -Parent)
             Write-Host "Checking build output directory:"
-            Get-ChildItem -Path "${{env.GITHUB_WORKSPACE}}/THJPatcher/THJPatcher/bin/Release" -Recurse -Filter "*.exe"
+            Get-ChildItem -Path "D:\a\THJ-Patcher\THJ-Patcher\THJPatcher\THJPatcher\bin\Release" -Recurse -Filter "*.exe"
             exit 1
         }
         
