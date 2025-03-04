@@ -128,6 +128,11 @@ jobs:
         Write-Host "=== Debug: Running FilelistBuilder ==="
         .\filelistbuilder-win-x64.exe -config filelistbuilder.yml
         
+        # Remove patch.zip if it exists
+        if (Test-Path "patch.zip") {
+            Remove-Item "patch.zip" -Force
+        }
+        
         Write-Host "=== Debug: Checking Results ==="
         if (Test-Path "${{env.FILE_NAME}}-hash.txt") {
             Write-Host "Hash file generated successfully!"
