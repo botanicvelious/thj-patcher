@@ -99,7 +99,7 @@ jobs:
         Set-Content -Path "filelistbuilder.yml" -Value "downloadprefix: ${{env.STORAGE_URL}}`nhashfile: ${{env.FILE_NAME}}-hash.txt"
         
         # Run filelistbuilder with the config file
-        .\filelistbuilder-win-x64.exe -config filelistbuilder.yml "rof"
+        .\filelistbuilder-win-x64.exe -config=filelistbuilder.yml -client=rof
         
         # Verify the hash file was created
         if (Test-Path "${{env.FILE_NAME}}-hash.txt") {
