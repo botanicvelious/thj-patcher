@@ -96,10 +96,7 @@ jobs:
         }
         
         # Create a temporary filelistbuilder.yml with the correct hash file name
-        @"
-downloadprefix: ${{env.STORAGE_URL}}
-hashfile: ${{env.FILE_NAME}}-hash.txt
-"@ | Out-File -FilePath "filelistbuilder.yml" -Encoding UTF8
+        Set-Content -Path "filelistbuilder.yml" -Value "downloadprefix: ${{env.STORAGE_URL}}`nhashfile: ${{env.FILE_NAME}}-hash.txt"
         
         .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
         
