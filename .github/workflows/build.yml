@@ -95,8 +95,21 @@ jobs:
             exit 1
         }
         
+        # Create a temporary filelistbuilder.yml with the correct hash file name
+        @"
+downloadprefix: ${{env.STORAGE_URL}}
+hashfile: ${{env.FILE_NAME}}-hash.txt
+"@ | Out-File -FilePath "filelistbuilder.yml" -Encoding UTF8
+        
         .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
-        Move-Item "eqemupatcher-hash.txt" "${{env.FILE_NAME}}-hash.txt" -Force
+        
+        # Verify the hash file was created
+        if (Test-Path "${{env.FILE_NAME}}-hash.txt") {
+            Write-Host "Hash file generated successfully"
+        } else {
+            Write-Host "Failed to generate hash file!"
+            exit 1
+        }
 
     - name: Create Release
       id: create_release
