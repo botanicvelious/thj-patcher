@@ -98,13 +98,16 @@ jobs:
         # Create a temporary filelistbuilder.yml with the correct hash file name
         Set-Content -Path "filelistbuilder.yml" -Value "downloadprefix: ${{env.STORAGE_URL}}`nhashfile: ${{env.FILE_NAME}}-hash.txt"
         
-        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
+        # Run filelistbuilder with the config file
+        .\filelistbuilder-win-x64.exe -config filelistbuilder.yml "rof"
         
         # Verify the hash file was created
         if (Test-Path "${{env.FILE_NAME}}-hash.txt") {
             Write-Host "Hash file generated successfully"
         } else {
             Write-Host "Failed to generate hash file!"
+            Write-Host "Contents of current directory:"
+            Get-ChildItem
             exit 1
         }
 
