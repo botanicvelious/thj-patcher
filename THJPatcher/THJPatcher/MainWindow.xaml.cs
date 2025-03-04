@@ -348,6 +348,7 @@ namespace THJPatcher
                 {
                     txtLog.AppendText(message + Environment.NewLine);
                     txtLog.ScrollToEnd();
+                    txtLog.CaretIndex = txtLog.Text.Length;
                 });
             }));
 
