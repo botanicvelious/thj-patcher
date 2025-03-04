@@ -96,13 +96,7 @@ jobs:
         }
         
         # Create a simple config file
-        $configContent = @"
-client: rof
-downloadprefix: ${{env.STORAGE_URL}}
-hashfile: ${{env.FILE_NAME}}-hash.txt
-exePath: ..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe
-"@
-        Set-Content -Path "filelistbuilder.yml" -Value $configContent
+        Set-Content -Path "filelistbuilder.yml" -Value "client: rof`ndownloadprefix: ${{env.STORAGE_URL}}`nhashfile: ${{env.FILE_NAME}}-hash.txt`nexePath: ..\${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe"
         
         Write-Host "Created config file with contents:"
         Get-Content "filelistbuilder.yml"
