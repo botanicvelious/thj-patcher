@@ -143,6 +143,32 @@ namespace THJPatcher
         {
             logPanel.Visibility = Visibility.Collapsed;
             optimizationsPanel.Visibility = Visibility.Visible;
+
+            // Check if 4GB patch is already applied
+            try
+            {
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string eqExePath = Path.Combine(eqPath, "eqgame.exe");
+
+                if (File.Exists(eqExePath))
+                {
+                    btn4GBPatch.IsEnabled = !Utilities.PEModifier.Is4GBPatchApplied(eqExePath);
+                    if (!btn4GBPatch.IsEnabled)
+                    {
+                        btn4GBPatch.ToolTip = "4GB patch is already applied to eqgame.exe";
+                    }
+                }
+                else
+                {
+                    btn4GBPatch.IsEnabled = false;
+                    btn4GBPatch.ToolTip = "eqgame.exe not found";
+                }
+            }
+            catch (Exception ex)
+            {
+                btn4GBPatch.IsEnabled = false;
+                btn4GBPatch.ToolTip = "Error checking patch status: " + ex.Message;
+            }
         }
 
         private void CloseOptimizations_Click(object sender, RoutedEventArgs e)
@@ -164,10 +190,31 @@ namespace THJPatcher
                     return;
                 }
 
+                // First check if patch is already applied
+                if (Utilities.PEModifier.Is4GBPatchApplied(eqExePath))
+                {
+                    MessageBox.Show("4GB patch is already applied to eqgame.exe", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    btn4GBPatch.IsEnabled = false;
+                    btn4GBPatch.ToolTip = "4GB patch is already applied to eqgame.exe";
+                    return;
+                }
+
+                // Apply the patch
                 if (Utilities.PEModifier.Apply4GBPatch(eqExePath))
                 {
-                    MessageBox.Show("Successfully applied 4GB patch. A backup of the original file has been created as eqgame.exe.bak", 
-                        "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    // Double-check if the patch was actually applied
+                    if (Utilities.PEModifier.Is4GBPatchApplied(eqExePath))
+                    {
+                        MessageBox.Show("Successfully applied 4GB patch. A backup of the original file has been created as eqgame.exe.bak", 
+                            "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                        btn4GBPatch.IsEnabled = false;
+                        btn4GBPatch.ToolTip = "4GB patch is already applied to eqgame.exe";
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to verify 4GB patch application. Please try again.", 
+                            "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
                 }
                 else
                 {

@@ -73,6 +73,35 @@ namespace THJPatcher.Utilities
             }
         }
 
+        public static bool Is4GBPatchApplied(string exePath)
+        {
+            try
+            {
+                byte[] fileBytes = File.ReadAllBytes(exePath);
+
+                var dosHeader = ByteArrayToStructure<IMAGE_DOS_HEADER>(fileBytes);
+                if (dosHeader.e_magic != IMAGE_DOS_SIGNATURE)
+                    return false;
+
+                int peOffset = dosHeader.e_lfanew;
+                if (peOffset > fileBytes.Length - 4)
+                    return false;
+
+                uint peSignature = BitConverter.ToUInt32(fileBytes, peOffset);
+                if (peSignature != IMAGE_NT_SIGNATURE)
+                    return false;
+
+                int fileHeaderOffset = peOffset + 4;
+                var fileHeader = ByteArrayToStructure<IMAGE_FILE_HEADER>(fileBytes, fileHeaderOffset);
+
+                return (fileHeader.Characteristics & LARGE_ADDRESS_AWARE) != 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static T ByteArrayToStructure<T>(byte[] bytes, int offset = 0) where T : struct
         {
             int size = Marshal.SizeOf<T>();
