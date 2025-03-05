@@ -86,7 +86,30 @@ jobs:
             Write-Host "Found file: $($_.Name)"
         }
         move "eqemupatcher-hash.txt" "${{env.FILE_NAME}}-hash.txt"
-  
+
+    - name: Sign the executable
+      run: |
+        Write-Host "=== Signing executable ==="
+        # Decode the certificate from base64 and save it
+        $certBase64 = "${{ secrets.CERT_BASE64 }}"
+        $certBytes = [Convert]::FromBase64String($certBase64)
+        $certPath = "THJPatcher.pfx"
+        [System.IO.File]::WriteAllBytes($certPath, $certBytes)
+        
+        $exePath = "THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe"
+        $password = "${{ secrets.CERT_PASSWORD }}"
+        
+        # Import the certificate
+        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($certPath, $password)
+        $store = New-Object System.Security.Cryptography.X509Certificates.X509Store("My", "CurrentUser")
+        $store.Open("ReadWrite")
+        $store.Add($cert)
+        $store.Close()
+        
+        # Sign the executable
+        signtool sign /f $certPath /p $password /t http://timestamp.digicert.com /d "The Heroes Journey Patcher" $exePath
+        Write-Host "=== Signing complete ==="
+
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@v1
