@@ -26,6 +26,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: Set up Node.js
       uses: actions/setup-node@v3
@@ -83,16 +85,19 @@ jobs:
         }
         move "eqemupatcher-hash.txt" "${{env.FILE_NAME}}-hash.txt"
   
-    - name: Release
-      uses: "marvinpinto/action-automatic-releases@latest"
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
       if: github.ref == 'refs/heads/master'
       with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "${{ env.VERSION }}.${{ github.run_number }}"
+        tag_name: ${{ env.VERSION }}.${{ github.run_number }}
+        name: Release ${{ env.VERSION }}.${{ github.run_number }}
+        draft: false
         prerelease: false
-        title: "${{ env.VERSION }}.${{ github.run_number }}"
         files: |
           THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/${{env.FILE_NAME}}.exe
           rof/filelist_rof.yml
           rof/${{env.FILE_NAME}}-hash.txt
           manifest.json
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
