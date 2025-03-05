@@ -15,6 +15,10 @@ env:
   PATCHER_URL: "https://github.com/BND10706/THJ-Patcher/releases/latest/download/"
   STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build:
     runs-on: windows-latest
