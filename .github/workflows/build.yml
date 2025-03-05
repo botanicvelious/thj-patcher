@@ -73,7 +73,11 @@ jobs:
         }
         .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe"
         move "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/${{env.FILE_NAME}}.exe"
-        move THJPatcher-hash.txt ${{env.FILE_NAME}}-hash.txt
+        Write-Host "=== Checking for hash file ==="
+        Get-ChildItem -Filter "*.txt" | ForEach-Object {
+            Write-Host "Found file: $($_.Name)"
+        }
+        move "rof-hash.txt" "${{env.FILE_NAME}}-hash.txt"
   
     - name: Release
       uses: "marvinpinto/action-automatic-releases@latest"
