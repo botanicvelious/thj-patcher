@@ -800,8 +800,8 @@ namespace THJPatcher
         {
             Dispatcher.Invoke(() =>
             {
-                progressBar.Value = progress;
-                txtProgress.Text = $"{progress}%";
+                progressBar.Value = progress / 100.0;
+                txtProgress.Text = $"{progress / 100}%";
             });
         }
 
