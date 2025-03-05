@@ -47,6 +47,10 @@
                     <Trigger Property="IsMouseOver" Value="True">
                         <Setter Property="Background" Value="#B0A373"/>
                     </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Background" Value="#808080"/>
+                        <Setter Property="Foreground" Value="#CCCCCC"/>
+                    </Trigger>
                 </Style.Triggers>
             </Style>
 
@@ -268,14 +272,51 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                 Margin="0,40,0,0">
                         <WrapPanel Orientation="Horizontal" Margin="8">
-                            <Button Content="4GB Patch"
+                            <Button x:Name="btn4GBPatch"
+                                    Content="4GB Patch"
                                     Width="180"
                                     Height="40"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="Apply4GBPatch_Click"
                                     ToolTip="Enables EverQuest to use up to 4GB of RAM on 64-bit systems. Creates a backup of the original file before patching."/>
-                       </WrapPanel>
+
+                            <Button x:Name="btnFixUIScale"
+                                    Content="Fix UI Scale"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="FixUIScale_Click"
+                                    ToolTip="Sets UI Scale to 1.0 in eqclient.ini"/>
+
+                            <Button x:Name="btnOptimizeGraphics"
+                                    Content="Optimize Graphics"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="OptimizeGraphics_Click"
+                                    ToolTip="Applies recommended graphics settings for better performance"/>
+
+                            <Button x:Name="btnClearCache"
+                                    Content="Clear Cache"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="ClearCache_Click"
+                                    ToolTip="Clears map and database cache files"/>
+
+                            <Button x:Name="btnResetSettings"
+                                    Content="Reset Settings"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="ResetSettings_Click"
+                                    ToolTip="Deletes all EverQuest configuration files. They will be recreated with defaults when you next launch the game."/>
+                        </WrapPanel>
                     </ScrollViewer>
                 </Grid>
             </materialDesign:Card>
