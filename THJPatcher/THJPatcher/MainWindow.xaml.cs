@@ -119,6 +119,11 @@ namespace THJPatcher
             Close();
         }
 
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.WindowState = WindowState.Minimized;
+        }
+
         private void LinkButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is System.Windows.Controls.Button button && button.Tag is string url)
@@ -549,6 +554,7 @@ namespace THJPatcher
             StatusLibrary.SetPatchState(true);
             isPatching = true;
             btnPatch.Background = _defaultButtonBrush;
+            txtProgress.Visibility = Visibility.Visible;
             StatusLibrary.Log("Patching in progress...");
             await Task.Delay(1000); // 1 second pause
             btnPatch.Visibility = Visibility.Collapsed;
@@ -562,6 +568,7 @@ namespace THJPatcher
                     await Task.Delay(1000);
                     StatusLibrary.Log("Patch complete! Ready to play!");
                     btnPlay.Visibility = Visibility.Visible;
+                    txtProgress.Visibility = Visibility.Collapsed;
                     
                     if (isAutoPlay)
                     {
@@ -575,6 +582,7 @@ namespace THJPatcher
                 await Task.Delay(1000);
                 StatusLibrary.Log($"Exception during patch: {e.Message}");
                 btnPatch.Visibility = Visibility.Visible;
+                txtProgress.Visibility = Visibility.Collapsed;
             }
 
             StatusLibrary.SetPatchState(false);
@@ -786,6 +794,29 @@ namespace THJPatcher
             }
 
             return $"{Math.Round(size, 2)} TB";
+        }
+
+        private void StatusLibrary_ProgressChanged(int progress)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                progressBar.Value = progress;
+                txtProgress.Text = $"{progress}%";
+            });
+        }
+
+        private void StatusLibrary_LogAdded(string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                txtLog.AppendText(message + Environment.NewLine);
+                txtLog.ScrollToEnd();
+                txtLog.CaretIndex = txtLog.Text.Length;
+                txtLog.Focus(); // Temporarily focus the text box
+                txtLog.ScrollToEnd(); // Scroll to end again after focusing
+                txtLog.CaretIndex = txtLog.Text.Length; // Set caret to end
+                txtLog.Focusable = false; // Make it unfocusable to prevent focus issues
+            });
         }
     }
 } 
