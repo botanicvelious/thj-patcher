@@ -46,10 +46,31 @@ jobs:
       run: |
         cd "THJPatcher" && msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}" "THJPatcher.sln"
 
+    - name: Debug Build Output
+      run: |
+        Write-Host "=== Current Directory ==="
+        Get-Location
+        Write-Host "`n=== Directory Structure ==="
+        Get-ChildItem -Path "THJPatcher" -Recurse -Filter "*.exe" | ForEach-Object {
+            Write-Host $_.FullName
+        }
+
     - name: Generate filelist
       run: |
         cd "rof"
         C:\msys64\usr\bin\wget.exe --no-verbose https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe
+        Write-Host "=== Running FilelistBuilder ==="
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host "Looking for executable at: ../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
+        if (Test-Path "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe") {
+            Write-Host "Executable found!"
+        } else {
+            Write-Host "Executable not found!"
+            Write-Host "Checking parent directories..."
+            Get-ChildItem -Path "../THJPatcher" -Recurse -Filter "*.exe" | ForEach-Object {
+                Write-Host $_.FullName
+            }
+        }
         .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
         move "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe"
         move THJPatcher-hash.txt ${{env.FILE_NAME}}-hash.txt
