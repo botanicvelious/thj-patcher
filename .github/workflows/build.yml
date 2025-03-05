@@ -40,17 +40,18 @@ jobs:
     - name: Generate manifest
       run: npm start
 
-    - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v1.1.3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
 
-    - name: Restore NuGet packages
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: cd "THJPatcher" && nuget restore "THJPatcher.sln"
+    - name: Restore dependencies
+      run: dotnet restore "THJPatcher/THJPatcher.sln"
 
     - name: Build
-      working-directory: ${{env.GITHUB_WORKSPACE}}
       run: |
-        cd "THJPatcher" && msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}" "THJPatcher.sln"
+        cd "THJPatcher"
+        dotnet publish "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}"
 
     - name: Debug Build Output
       run: |
@@ -59,6 +60,7 @@ jobs:
         Write-Host "`n=== Directory Structure ==="
         Get-ChildItem -Path "THJPatcher" -Recurse -Filter "*.exe" | ForEach-Object {
             Write-Host $_.FullName
+            Write-Host "File size: $($_.Length) bytes"
         }
 
     - name: Generate filelist
@@ -67,8 +69,8 @@ jobs:
         C:\msys64\usr\bin\wget.exe --no-verbose https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe
         Write-Host "=== Running FilelistBuilder ==="
         Write-Host "Current directory: $(Get-Location)"
-        Write-Host "Looking for executable at: ../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe"
-        if (Test-Path "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe") {
+        Write-Host "Looking for executable at: ../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
+        if (Test-Path "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe") {
             Write-Host "Executable found!"
         } else {
             Write-Host "Executable not found!"
@@ -77,8 +79,8 @@ jobs:
                 Write-Host $_.FullName
             }
         }
-        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe"
-        move "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/${{env.FILE_NAME}}.exe"
+        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
+        move "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe"
         Write-Host "=== Checking for hash file ==="
         Get-ChildItem -Filter "*.txt" | ForEach-Object {
             Write-Host "Found file: $($_.Name)"
@@ -95,7 +97,7 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/${{env.FILE_NAME}}.exe
+          THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe
           rof/filelist_rof.yml
           rof/${{env.FILE_NAME}}-hash.txt
           manifest.json
