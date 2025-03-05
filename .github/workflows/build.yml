@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [ "master" ]
 
-permissions:
-  contents: write
-  packages: write
-
 env:
   VERSION: 1.0.6
   BUILD_CONFIGURATION: Release
@@ -18,20 +14,14 @@ env:
   FILELIST_URL: "https://github.com/BND10706/THJ-Patcher/releases/latest/download/"
   PATCHER_URL: "https://github.com/BND10706/THJ-Patcher/releases/latest/download/"
   STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
-  BUILD_PATH: "THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish"
 
 jobs:
   build:
     runs-on: windows-latest
-    permissions:
-      contents: write
-      packages: write
 
     steps:
     - name: Checkout
       uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
 
     - name: Set up Node.js
       uses: actions/setup-node@v3
@@ -47,12 +37,6 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.1.3
 
-    - name: Create directories
-      shell: pwsh
-      run: |
-        New-Item -Path "rof" -ItemType Directory -Force
-        New-Item -Path "${{env.BUILD_PATH}}" -ItemType Directory -Force
-
     - name: Restore NuGet packages
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: cd "THJPatcher" && nuget restore "THJPatcher.sln"
@@ -60,97 +44,26 @@ jobs:
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: |
-        cd "THJPatcher" && dotnet publish "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}"
-
-    - name: Verify build output
-      shell: pwsh
-      run: |
-        Write-Host "Checking Release directory contents:"
-        Get-ChildItem -Path "${{env.BUILD_PATH}}" -Recurse | ForEach-Object {
-            Write-Host $_.FullName
-        }
-        
-        # Create a copy of the executable with the correct name
-        $sourceExe = Get-ChildItem -Path "${{env.BUILD_PATH}}" -Filter "THJPatcher.exe" | Select-Object -First 1
-        if ($sourceExe) {
-            Write-Host "Found executable: $($sourceExe.Name)"
-            Copy-Item -Path $sourceExe.FullName -Destination "${{env.BUILD_PATH}}\${{env.FILE_NAME}}.exe" -Force
-        } else {
-            Write-Host "No executable found in Release directory!"
-            Get-ChildItem -Path "${{env.BUILD_PATH}}" -Filter "*.exe"
-            exit 1
-        }
+        cd "THJPatcher" && msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}" "THJPatcher.sln"
 
     - name: Generate filelist
-      shell: pwsh
       run: |
-        # Create a clean test directory
-        Remove-Item -Path "rof" -Recurse -Force -ErrorAction SilentlyContinue
-        New-Item -Path "rof" -ItemType Directory -Force
-        
-        # Download filelistbuilder
-        Invoke-WebRequest -Uri "https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe" -OutFile "rof/filelistbuilder-win-x64.exe"
-        
-        # Create a minimal test file
-        Set-Content -Path "rof/test.txt" -Value "This is a test file for debugging"
-        
-        Write-Host "=== Debug: Current Directory ==="
-        Get-Location
-        Write-Host "=== Debug: Directory Contents ==="
-        Get-ChildItem -Path "rof"
-        
-        Write-Host "=== Debug: Verifying Executable ==="
-        $exePath = "D:\a\THJ-Patcher\THJ-Patcher\THJPatcher\THJPatcher\bin\Release\net8.0-windows\win-x64\publish\${{env.FILE_NAME}}.exe"
-        Write-Host "Looking for executable at: $exePath"
-        if (Test-Path $exePath) {
-            Write-Host "Executable found!"
-            Write-Host "File size: $((Get-Item $exePath).Length) bytes"
-            Write-Host "Last modified: $((Get-Item $exePath).LastWriteTime)"
-        } else {
-            Write-Host "Executable not found!"
-            Write-Host "Parent directory contents:"
-            Get-ChildItem (Split-Path $exePath -Parent)
-            Write-Host "Checking build output directory:"
-            Get-ChildItem -Path "D:\a\THJ-Patcher\THJ-Patcher\THJPatcher\THJPatcher\bin\Release" -Recurse -Filter "*.exe"
-            exit 1
-        }
-        
-        Write-Host "=== Debug: Running FilelistBuilder ==="
-        Set-Location -Path "rof"
-        
-        Write-Host "=== Debug: Running FilelistBuilder with direct arguments ==="
-        .\filelistbuilder-win-x64.exe -client rof -downloadprefix "${{env.STORAGE_URL}}" -hashfile "${{env.FILE_NAME}}-hash.txt" -exePath "$exePath"
-        
-        # Remove patch.zip if it exists
-        if (Test-Path "patch.zip") {
-            Remove-Item "patch.zip" -Force
-        }
-        
-        Write-Host "=== Debug: Checking Results ==="
-        if (Test-Path "${{env.FILE_NAME}}-hash.txt") {
-            Write-Host "Hash file generated successfully!"
-            Write-Host "Hash file contents:"
-            Get-Content "${{env.FILE_NAME}}-hash.txt"
-        } else {
-            Write-Host "Failed to generate hash file!"
-            Write-Host "Current directory contents:"
-            Get-ChildItem
-            exit 1
-        }
-
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
+        cd "rof"
+        C:\msys64\usr\bin\wget.exe --no-verbose https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe
+        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../THJPatcher/THJPatcher/bin/Release/THJPatcher.exe"
+        move "../THJPatcher/THJPatcher/bin/Release/THJPatcher.exe" "../THJPatcher/THJPatcher/bin/Release/${{env.FILE_NAME}}.exe"
+        move THJPatcher-hash.txt ${{env.FILE_NAME}}-hash.txt
+  
+    - name: Release
+      uses: "marvinpinto/action-automatic-releases@latest"
       if: github.ref == 'refs/heads/master'
       with:
-        tag_name: ${{ env.VERSION }}.${{ github.run_number }}
-        name: Release ${{ env.VERSION }}.${{ github.run_number }}
-        draft: false
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "${{ env.VERSION }}.${{ github.run_number }}"
         prerelease: false
+        title: "${{ env.VERSION }}.${{ github.run_number }}"
         files: |
-          ${{env.BUILD_PATH}}/${{env.FILE_NAME}}.exe
+          THJPatcher/THJPatcher/bin/Release/${{env.FILE_NAME}}.exe
           rof/filelist_rof.yml
           rof/${{env.FILE_NAME}}-hash.txt
           manifest.json
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
