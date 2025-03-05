@@ -14,6 +14,7 @@ env:
   FILELIST_URL: "https://github.com/BND10706/THJ-Patcher/releases/latest/download/"
   PATCHER_URL: "https://github.com/BND10706/THJ-Patcher/releases/latest/download/"
   STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
+  SIGNTOOL_PATH: "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\x64\\signtool.exe"
 
 permissions:
   contents: write
@@ -24,7 +25,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout
+    - name: Checkout Repository
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
@@ -48,7 +49,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore "THJPatcher/THJPatcher.sln"
 
-    - name: Build
+    - name: Build Application
       run: |
         cd "THJPatcher"
         dotnet publish "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}"
@@ -63,52 +64,39 @@ jobs:
             Write-Host "File size: $($_.Length) bytes"
         }
 
-    - name: Generate filelist
+    - name: Generate File List
       run: |
         cd "rof"
         C:\msys64\usr\bin\wget.exe --no-verbose https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe
         Write-Host "=== Running FilelistBuilder ==="
-        Write-Host "Current directory: $(Get-Location)"
-        Write-Host "Looking for executable at: ../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
-        if (Test-Path "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe") {
-            Write-Host "Executable found!"
-        } else {
-            Write-Host "Executable not found!"
-            Write-Host "Checking parent directories..."
-            Get-ChildItem -Path "../THJPatcher" -Recurse -Filter "*.exe" | ForEach-Object {
-                Write-Host $_.FullName
-            }
-        }
         .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
         move "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe"
-        Write-Host "=== Checking for hash file ==="
-        Get-ChildItem -Filter "*.txt" | ForEach-Object {
-            Write-Host "Found file: $($_.Name)"
-        }
         move "eqemupatcher-hash.txt" "${{env.FILE_NAME}}-hash.txt"
 
-    - name: Sign the executable
+    - name: Sign the Executable
       run: |
-        Write-Host "=== Signing executable ==="
+        Write-Host "=== Signing Executable ==="
+
         # Decode the certificate from base64 and save it
         $certBase64 = "${{ secrets.CERT_BASE64 }}"
         $certBytes = [Convert]::FromBase64String($certBase64)
         $certPath = "THJPatcher.pfx"
         [System.IO.File]::WriteAllBytes($certPath, $certBytes)
-        
+
         $exePath = "THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe"
         $password = "${{ secrets.CERT_PASSWORD }}"
-        
-        # Import the certificate
-        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($certPath, $password)
-        $store = New-Object System.Security.Cryptography.X509Certificates.X509Store("My", "CurrentUser")
-        $store.Open("ReadWrite")
-        $store.Add($cert)
-        $store.Close()
-        
+
+        # Check if signtool exists
+        if (!(Test-Path "${{ env.SIGNTOOL_PATH }}")) {
+            Write-Host "ERROR: signtool.exe not found at ${{ env.SIGNTOOL_PATH }}"
+            exit 1
+        }
+
         # Sign the executable
-        signtool sign /f $certPath /p $password /t http://timestamp.digicert.com /d "The Heroes Journey Patcher" $exePath
-        Write-Host "=== Signing complete ==="
+        & "${{ env.SIGNTOOL_PATH }}" sign /f $certPath /p $password /t http://timestamp.digicert.com /d "The Heroes Journey Patcher" $exePath
+        Write-Host "=== Signing Complete ==="
+
+      shell: pwsh
 
     - name: Create Release
       id: create_release
