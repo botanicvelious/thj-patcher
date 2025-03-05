@@ -79,26 +79,49 @@ jobs:
     - name: Sign the Executable
       run: |
         Write-Host "=== Signing Executable ==="
-
+        
         # Decode the certificate from base64 and save it
         $certBase64 = "${{ secrets.CERT_BASE64 }}"
+        if ([string]::IsNullOrEmpty($certBase64)) {
+            Write-Host "ERROR: CERT_BASE64 secret is missing or empty!"
+            exit 1
+        }
+
         $certBytes = [Convert]::FromBase64String($certBase64)
         $certPath = "THJPatcher.pfx"
         [System.IO.File]::WriteAllBytes($certPath, $certBytes)
 
+        # Define variables
         $exePath = "THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe"
         $password = "${{ secrets.CERT_PASSWORD }}"
 
-        # Verify signtool path
-        $signtoolPath = "${{ steps.signtool.outputs.signtool-x64 }}"
+        # Ensure SIGNTOOL_PATH is correctly set, or use the default path
+        $signtoolPath = "${{ env.SIGNTOOL_PATH }}"
+        if (-not $signtoolPath) {
+            $signtoolPath = "C:\Program Files (x86)\Windows Kits\10\bin\x64\signtool.exe"
+        }
+
+        # Verify signtool exists
         if (!(Test-Path $signtoolPath)) {
             Write-Host "ERROR: signtool.exe not found at $signtoolPath"
             exit 1
         }
 
+        # Verify executable exists
+        if (!(Test-Path $exePath)) {
+            Write-Host "ERROR: Executable not found at $exePath"
+            exit 1
+        }
+
         # Sign the executable
         & $signtoolPath sign /f $certPath /p $password /t http://timestamp.digicert.com /d "The Heroes Journey Patcher" $exePath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Signing failed!"
+            exit 1
+        }
+
         Write-Host "=== Signing Complete ==="
+
       shell: pwsh
 
     - name: Create Release
