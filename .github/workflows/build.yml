@@ -77,7 +77,7 @@ jobs:
         Get-ChildItem -Filter "*.txt" | ForEach-Object {
             Write-Host "Found file: $($_.Name)"
         }
-        move "rof-hash.txt" "${{env.FILE_NAME}}-hash.txt"
+        move "eqemupatcher-hash.txt" "${{env.FILE_NAME}}-hash.txt"
   
     - name: Release
       uses: "marvinpinto/action-automatic-releases@latest"
