@@ -28,6 +28,7 @@ namespace THJPatcher
         private bool isLoading;
         private bool isAutoPatch = false;
         private bool isAutoPlay = false;
+        private bool isDebugMode = true;
         private CancellationTokenSource cts;
         private Process process;
         private string myHash = "";
@@ -379,104 +380,110 @@ namespace THJPatcher
             StatusLibrary.Log("Checking for updates...");
             await Task.Delay(2000);
 
-            // First check if we need to update the patcher
-            string url = $"{patcherUrl}{fileName}-hash.txt";
-            try
+            // Skip self-update check in debug mode
+            if (!isDebugMode)
             {
-                StatusLibrary.Log("[DEBUG] Checking patcher version...");
-                var data = await UtilityLibrary.Download(cts, url);
-                string response = System.Text.Encoding.Default.GetString(data).ToUpper();
-                
-                if (response != "")
+                // First check if we need to update the patcher
+                string url = $"{patcherUrl}{fileName}-hash.txt";
+                try
                 {
-                    myHash = UtilityLibrary.GetMD5(System.Windows.Forms.Application.ExecutablePath);
-                    StatusLibrary.Log($"[DEBUG] Comparing patcher hashes - Remote: {response}, Local: {myHash}");
-                    if (response != myHash)
+                    StatusLibrary.Log("[DEBUG] Checking patcher version...");
+                    var data = await UtilityLibrary.Download(cts, url);
+                    string response = System.Text.Encoding.Default.GetString(data).ToUpper();
+                    
+                    if (response != "")
                     {
-                        isNeedingSelfUpdate = true;
-                        if (!isPendingPatch)
+                        myHash = UtilityLibrary.GetMD5(System.Windows.Forms.Application.ExecutablePath);
+                        StatusLibrary.Log($"[DEBUG] Comparing patcher hashes - Remote: {response}, Local: {myHash}");
+                        if (response != myHash)
                         {
-                            Dispatcher.Invoke(() =>
+                            isNeedingSelfUpdate = true;
+                            if (!isPendingPatch)
                             {
-                                StatusLibrary.Log("[DEBUG] Patcher update needed");
-                                StatusLibrary.Log("Update available! Click PATCH to begin.");
-                                btnPatch.Visibility = Visibility.Visible;
-                                btnPlay.Visibility = Visibility.Collapsed;
-                            });
-                            return;
+                                Dispatcher.Invoke(() =>
+                                {
+                                    StatusLibrary.Log("[DEBUG] Patcher update needed");
+                                    StatusLibrary.Log("Update available! Click PATCH to begin.");
+                                    btnPatch.Visibility = Visibility.Visible;
+                                    btnPlay.Visibility = Visibility.Collapsed;
+                                });
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            StatusLibrary.Log("[DEBUG] Patcher is up to date");
                         }
                     }
-                    else
-                    {
-                        StatusLibrary.Log("[DEBUG] Patcher is up to date");
-                    }
                 }
+                catch (Exception ex)
+                {
+                    StatusLibrary.Log($"[DEBUG] Exception during patcher update check: {ex.Message}");
+                }
+            }
+            else
+            {
+                StatusLibrary.Log("[DEBUG] Debug mode enabled - skipping patcher self-update check");
+            }
 
-                // Now check if game files need updating by comparing filelist version
-                string suffix = "rof";
-                string webUrl = $"{filelistUrl}{suffix}/filelist_{suffix}.yml";
-                StatusLibrary.Log($"[DEBUG] Attempting to download filelist from: {webUrl}");
-                string filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+            // Now check if game files need updating by comparing filelist version
+            string suffix = "rof";
+            string webUrl = $"{filelistUrl}{suffix}/filelist_{suffix}.yml";
+            StatusLibrary.Log($"[DEBUG] Attempting to download filelist from: {webUrl}");
+            string filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+            if (filelistResponse != "")
+            {
+                webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
+                StatusLibrary.Log($"[DEBUG] First URL failed, trying alternate URL: {webUrl}");
+                filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
                 if (filelistResponse != "")
                 {
-                    webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
-                    StatusLibrary.Log($"[DEBUG] First URL failed, trying alternate URL: {webUrl}");
-                    filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
-                    if (filelistResponse != "")
-                    {
-                        StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {filelistResponse}");
-                        return;
-                    }
+                    StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {filelistResponse}");
+                    return;
                 }
-
-                // Read and check filelist version
-                FileList filelist;
-                string filelistPath = $"{Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath)}\\filelist.yml";
-                StatusLibrary.Log($"[DEBUG] Reading local filelist from: {filelistPath}");
-                
-                using (var input = File.OpenText(filelistPath))
-                {
-                    var deserializerBuilder = new DeserializerBuilder()
-                        .WithNamingConvention(CamelCaseNamingConvention.Instance)
-                        .Build();
-                    filelist = deserializerBuilder.Deserialize<FileList>(input);
-                }
-
-                StatusLibrary.Log($"[DEBUG] Comparing versions - Filelist version: {filelist.version}, Last patched version: {IniLibrary.instance.LastPatchedVersion}");
-                if (filelist.version != IniLibrary.instance.LastPatchedVersion)
-                {
-                    if (!isPendingPatch)
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            StatusLibrary.Log("[DEBUG] Version mismatch detected - update needed");
-                            StatusLibrary.Log("Update available! Click PATCH to begin.");
-                            btnPatch.Visibility = Visibility.Visible;
-                            btnPlay.Visibility = Visibility.Collapsed;
-                        });
-                        return;
-                    }
-                }
-                else
-                {
-                    StatusLibrary.Log("[DEBUG] Versions match - no update needed");
-                }
-
-                // If we get here, no updates are needed
-                await Task.Delay(1000); 
-                Dispatcher.Invoke(() =>
-                {
-                    StatusLibrary.Log("Ready to play!");
-                    btnPatch.Visibility = Visibility.Collapsed;
-                    btnPlay.Visibility = Visibility.Visible;
-                });
             }
-            catch (Exception ex)
+
+            // Read and check filelist version
+            FileList filelist;
+            string filelistPath = $"{Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath)}\\filelist.yml";
+            StatusLibrary.Log($"[DEBUG] Reading local filelist from: {filelistPath}");
+            
+            using (var input = File.OpenText(filelistPath))
             {
-                await Task.Delay(1000);
-                StatusLibrary.Log($"[DEBUG] Exception occurred: {ex.Message}");
-                StatusLibrary.Log($"Failed to fetch patch from {url}: {ex.Message}");
+                var deserializerBuilder = new DeserializerBuilder()
+                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                    .Build();
+                filelist = deserializerBuilder.Deserialize<FileList>(input);
             }
+
+            StatusLibrary.Log($"[DEBUG] Comparing versions - Filelist version: {filelist.version}, Last patched version: {IniLibrary.instance.LastPatchedVersion}");
+            if (filelist.version != IniLibrary.instance.LastPatchedVersion)
+            {
+                if (!isPendingPatch)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        StatusLibrary.Log("[DEBUG] Version mismatch detected - update needed");
+                        StatusLibrary.Log("Update available! Click PATCH to begin.");
+                        btnPatch.Visibility = Visibility.Visible;
+                        btnPlay.Visibility = Visibility.Collapsed;
+                    });
+                    return;
+                }
+            }
+            else
+            {
+                StatusLibrary.Log("[DEBUG] Versions match - no update needed");
+            }
+
+            // If we get here, no updates are needed
+            await Task.Delay(1000); 
+            Dispatcher.Invoke(() =>
+            {
+                StatusLibrary.Log("Ready to play!");
+                btnPatch.Visibility = Visibility.Collapsed;
+                btnPlay.Visibility = Visibility.Visible;
+            });
         }
 
         private void BtnPatch_Click(object sender, RoutedEventArgs e)
@@ -582,8 +589,9 @@ namespace THJPatcher
             StatusLibrary.Log($"Patching with patcher version {version}...");
             StatusLibrary.SetProgress(0);
 
-            // Handle self-update first if needed
-            if (myHash != "" && isNeedingSelfUpdate)
+            // Handle self-update first if needed and not in debug mode
+            /*
+            if (!isDebugMode && myHash != "" && isNeedingSelfUpdate)
             {
                 StatusLibrary.Log("Downloading update...");
                 string url = $"{patcherUrl}/{fileName}.exe";
@@ -611,6 +619,11 @@ namespace THJPatcher
                 }
                 isNeedingSelfUpdate = false;
             }
+            else if (isDebugMode)
+            {
+                StatusLibrary.Log("[DEBUG] Debug mode enabled - skipping patcher self-update");
+            }
+            */
 
             if (isPatchCancelled)
             {
