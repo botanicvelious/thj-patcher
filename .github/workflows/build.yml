@@ -61,8 +61,8 @@ jobs:
         C:\msys64\usr\bin\wget.exe --no-verbose https://github.com/xackery/filelistbuilder/releases/latest/download/filelistbuilder-win-x64.exe
         Write-Host "=== Running FilelistBuilder ==="
         Write-Host "Current directory: $(Get-Location)"
-        Write-Host "Looking for executable at: ../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
-        if (Test-Path "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe") {
+        Write-Host "Looking for executable at: ../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe"
+        if (Test-Path "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe") {
             Write-Host "Executable found!"
         } else {
             Write-Host "Executable not found!"
@@ -71,8 +71,8 @@ jobs:
                 Write-Host $_.FullName
             }
         }
-        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
-        move "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe"
+        .\filelistbuilder-win-x64.exe "rof" "${{env.STORAGE_URL}}" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe"
+        move "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/THJPatcher.exe" "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/${{env.FILE_NAME}}.exe"
         move THJPatcher-hash.txt ${{env.FILE_NAME}}-hash.txt
   
     - name: Release
@@ -84,7 +84,7 @@ jobs:
         prerelease: false
         title: "${{ env.VERSION }}.${{ github.run_number }}"
         files: |
-          THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe
+          THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/${{env.FILE_NAME}}.exe
           rof/filelist_rof.yml
           rof/${{env.FILE_NAME}}-hash.txt
           manifest.json
