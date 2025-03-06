@@ -363,13 +363,7 @@ namespace THJPatcher
             chkAutoPlay.IsChecked = isAutoPlay;
             chkAutoPatch.IsChecked = isAutoPatch;
 
-            StatusLibrary.SubscribeProgress(new StatusLibrary.ProgressHandler((int value) =>
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    progressBar.Value = value / 100.0;
-                });
-            }));
+            StatusLibrary.SubscribeProgress(new StatusLibrary.ProgressHandler(StatusLibrary_ProgressChanged));
 
             StatusLibrary.SubscribeLogAdd(new StatusLibrary.LogAddHandler((string message) =>
             {
@@ -825,8 +819,11 @@ namespace THJPatcher
         {
             Dispatcher.Invoke(() =>
             {
-                progressBar.Value = progress;
-                txtProgress.Text = $"{progress}%";
+                // Convert from 0-10000 range to 0-100 range
+                int displayProgress = progress / 100;
+                progressBar.Value = displayProgress;
+                // Use the actual progress bar value for the text
+                txtProgress.Text = $"{(int)progressBar.Value}%";
             });
         }
 
