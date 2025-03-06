@@ -204,6 +204,15 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
+            <!-- Version Number -->
+            <TextBlock Text="v1.0.6"
+                     HorizontalAlignment="Right"
+                     VerticalAlignment="Bottom"
+                     FontSize="10"
+                     Foreground="#FBE9A4"
+                     Margin="0,0,0,0"
+                     Grid.Row="1"/>
+
             <!-- Progress Section -->
             <Grid Grid.Row="0">
                 <Grid.RowDefinitions>
