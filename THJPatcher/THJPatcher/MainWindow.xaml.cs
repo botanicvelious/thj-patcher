@@ -175,6 +175,13 @@ namespace THJPatcher
                     return;
                 }
 
+                // Show confirmation dialog
+                string message = "Are you sure you want to apply the 4GB patch? This will enable EverQuest to use up to 4GB of RAM on 64-bit systems and will create a backup of the original file.";
+                if (!CustomMessageBox.Show(message))
+                {
+                    return;
+                }
+
                 // Apply the patch
                 if (Utilities.PEModifier.Apply4GBPatch(eqExePath))
                 {

@@ -1,0 +1,73 @@
+<Window x:Class="THJPatcher.CustomMessageBox"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="Confirmation" 
+        Height="200" 
+        Width="400"
+        WindowStyle="None" 
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="Transparent"
+        AllowsTransparency="True">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <materialDesign:CustomColorTheme BaseTheme="Dark" PrimaryColor="#FBE9A4" SecondaryColor="#B0A373"/>
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Custom Button Style -->
+            <Style x:Key="GoldButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                <Setter Property="Background" Value="#FBE9A4"/>
+                <Setter Property="Foreground" Value="Black"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#B0A373"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Border BorderThickness="1" BorderBrush="#FBE9A4" Background="#1A1A2E" CornerRadius="5">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="MessageText"
+                      Text="Are you sure you want to apply the 4GB patch? This will enable EverQuest to use up to 4GB of RAM on 64-bit systems and will create a backup of the original file."
+                      TextWrapping="Wrap"
+                      Foreground="#FBE9A4"
+                      VerticalAlignment="Center"
+                      HorizontalAlignment="Center"
+                      TextAlignment="Center"/>
+
+            <StackPanel Grid.Row="1" 
+                        Orientation="Horizontal" 
+                        HorizontalAlignment="Center" 
+                        Margin="0,20,0,0">
+                <Button x:Name="YesButton"
+                        Content="Yes"
+                        Width="100"
+                        Height="35"
+                        Margin="0,0,10,0"
+                        Style="{StaticResource GoldButton}"
+                        Click="YesButton_Click"/>
+                <Button x:Name="NoButton"
+                        Content="No"
+                        Width="100"
+                        Height="35"
+                        Margin="10,0,0,0"
+                        Style="{StaticResource GoldButton}"
+                        Click="NoButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window> 
