@@ -578,6 +578,8 @@ namespace THJPatcher
             isPatching = true;
             btnPatch.Background = _defaultButtonBrush;
             txtProgress.Visibility = Visibility.Visible;
+            progressBar.Value = 0;
+            txtProgress.Text = "0%";
             StatusLibrary.Log("Patching in progress...");
             await Task.Delay(1000); // 1 second pause
             btnPatch.Visibility = Visibility.Collapsed;
@@ -823,8 +825,8 @@ namespace THJPatcher
         {
             Dispatcher.Invoke(() =>
             {
-                progressBar.Value = progress / 100.0;
-                txtProgress.Text = $"{progress / 100}%";
+                progressBar.Value = progress;
+                txtProgress.Text = $"{progress}%";
             });
         }
 
@@ -834,11 +836,16 @@ namespace THJPatcher
             {
                 txtLog.AppendText(message + Environment.NewLine);
                 txtLog.ScrollToEnd();
-                txtLog.CaretIndex = txtLog.Text.Length;
-                txtLog.Focus(); // Temporarily focus the text box
-                txtLog.ScrollToEnd(); // Scroll to end again after focusing
-                txtLog.CaretIndex = txtLog.Text.Length; // Set caret to end
-                txtLog.Focusable = false; // Make it unfocusable to prevent focus issues
+                
+                // Get the ScrollViewer that contains the TextBox
+                if (txtLog.Parent is ScrollViewer scrollViewer)
+                {
+                    scrollViewer.ScrollToEnd();
+                }
+                else if (LogicalTreeHelper.GetParent(txtLog.Parent) is ScrollViewer parentScrollViewer)
+                {
+                    parentScrollViewer.ScrollToEnd();
+                }
             });
         }
 
@@ -846,7 +853,9 @@ namespace THJPatcher
         {
             try
             {
-                string eqExePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "eqgame.exe");
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string eqExePath = Path.Combine(eqPath, "eqgame.exe");
+                
                 if (File.Exists(eqExePath))
                 {
                     btn4GBPatch.IsEnabled = !Utilities.PEModifier.Is4GBPatchApplied(eqExePath);
@@ -857,8 +866,8 @@ namespace THJPatcher
                 }
                 else
                 {
-                    btn4GBPatch.IsEnabled = false;
-                    btn4GBPatch.ToolTip = "eqgame.exe not found";
+                    btn4GBPatch.IsEnabled = true;
+                    btn4GBPatch.ToolTip = "eqgame.exe not found - button will be enabled when game files are patched";
                 }
             }
             catch (Exception ex)

@@ -241,7 +241,10 @@
             <!-- Log Section -->
             <materialDesign:Card x:Name="logPanel" Grid.Row="1" Margin="0,8" Background="Transparent">
                 <Border BorderThickness="0" Background="Transparent">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer x:Name="logScrollViewer" 
+                                VerticalScrollBarVisibility="Auto" 
+                                CanContentScroll="True"
+                                IsDeferredScrollingEnabled="False">
                         <TextBox x:Name="txtLog"
                                 TextWrapping="Wrap"
                                 VerticalAlignment="Stretch"
@@ -251,7 +254,9 @@
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Foreground="#FBE9A4"
-                                Padding="8"/>
+                                Padding="8"
+                                IsUndoEnabled="False"
+                                Focusable="False"/>
                     </ScrollViewer>
                 </Border>
             </materialDesign:Card>
@@ -297,6 +302,7 @@
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="FixUIScale_Click"
+                                    Visibility="Collapsed"
                                     ToolTip="Sets UI Scale to 1.0 in eqclient.ini"/>
 
                             <Button x:Name="btnOptimizeGraphics"
@@ -306,6 +312,7 @@
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="OptimizeGraphics_Click"
+                                    Visibility="Collapsed"
                                     ToolTip="Applies recommended graphics settings for better performance"/>
 
                             <Button x:Name="btnClearCache"
@@ -315,6 +322,7 @@
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="ClearCache_Click"
+                                    Visibility="Collapsed"
                                     ToolTip="Clears map and database cache files"/>
 
                             <Button x:Name="btnResetSettings"
@@ -324,6 +332,7 @@
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="ResetSettings_Click"
+                                    Visibility="Collapsed"
                                     ToolTip="Deletes all EverQuest configuration files. They will be recreated with defaults when you next launch the game."/>
                         </WrapPanel>
                     </ScrollViewer>
