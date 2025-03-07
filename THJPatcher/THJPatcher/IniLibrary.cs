@@ -83,16 +83,5 @@ namespace THJPatcher
             instance.LastPatchedVersion = "";
         }
 
-        public void Save()
-        {
-            try
-            {
-                File.WriteAllText("patcher.ini", $"LastPatchedVersion={LastPatchedVersion}");
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error saving version: {ex.Message}");
-            }
-        }
     }
 }
