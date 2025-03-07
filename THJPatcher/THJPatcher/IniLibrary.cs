@@ -22,29 +22,70 @@ namespace THJPatcher
         public string FileName { get; set; }
         public string Version { get; set; }
 
+        private static string GetConfigPath()
+        {
+            // Get the directory where filelist.yml is located, since that's our working directory
+            string workingDir = Path.GetDirectoryName(Path.Combine(Application.StartupPath, "filelist.yml"));
+            if (!Directory.Exists(workingDir))
+            {
+                workingDir = Path.GetDirectoryName(Application.ExecutablePath);
+            }
+            Debug.WriteLine($"[DEBUG] Working directory: {workingDir}");
+            return Path.Combine(workingDir, "thjpatcher.yml");
+        }
+
         public static void Save()
         {
             try
             {
-                using (var writer = File.CreateText($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}\\thjpatcher.yml"))
+                string configPath = GetConfigPath();
+                Debug.WriteLine($"[DEBUG] Saving config to: {configPath}");
+                Debug.WriteLine($"[DEBUG] LastPatchedVersion before save: {instance.LastPatchedVersion}");
+                
+                using (var writer = File.CreateText(configPath))
                 {
                     var serializer = new SerializerBuilder()
                         .WithNamingConvention(CamelCaseNamingConvention.Instance)
                         .Build();
                     serializer.Serialize(writer, instance);
                 }
-                Debug.WriteLine($"Saved version: {instance.Version}");
+                
+                // Verify the file was written
+                if (File.Exists(configPath))
+                {
+                    Debug.WriteLine($"[DEBUG] Config file saved successfully");
+                    string contents = File.ReadAllText(configPath);
+                    Debug.WriteLine($"[DEBUG] Config file contents: {contents}");
+                }
+                else
+                {
+                    Debug.WriteLine($"[DEBUG] Warning: Config file not found after save attempt");
+                }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error saving config: {ex.Message}");
+                Debug.WriteLine($"[DEBUG] Error saving config: {ex.Message}");
+                Debug.WriteLine($"[DEBUG] Stack trace: {ex.StackTrace}");
             }
         }
 
         public static void Load()
         {
+            string configPath = GetConfigPath();
+            Debug.WriteLine($"[DEBUG] Loading config from: {configPath}");
+            
             try {
-                using (var input = File.OpenText($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}\\thjpatcher.yml"))
+                if (File.Exists(configPath))
+                {
+                    string contents = File.ReadAllText(configPath);
+                    Debug.WriteLine($"[DEBUG] Existing config contents: {contents}");
+                }
+                else
+                {
+                    Debug.WriteLine($"[DEBUG] No existing config file found");
+                }
+                
+                using (var input = File.OpenText(configPath))
                 {
                     var deserializer = new DeserializerBuilder()
                         .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -53,11 +94,17 @@ namespace THJPatcher
                 }
 
                 if (instance == null) {
+                    Debug.WriteLine($"[DEBUG] Deserialized instance is null, resetting defaults");
                     ResetDefaults();
                     Save();
                 }
             } catch (FileNotFoundException e) {
-                Console.WriteLine($"Failed loading config: {e.Message}");
+                Debug.WriteLine($"[DEBUG] Config file not found: {e.Message}");
+                ResetDefaults();
+                Save();
+            } catch (Exception e) {
+                Debug.WriteLine($"[DEBUG] Error loading config: {e.Message}");
+                Debug.WriteLine($"[DEBUG] Stack trace: {e.StackTrace}");
                 ResetDefaults();
                 Save();
             }
@@ -69,11 +116,12 @@ namespace THJPatcher
             if (instance.Version == null) instance.Version = "1.0.0";
             if (instance.LastPatchedVersion == null) instance.LastPatchedVersion = "";
 
-            Debug.WriteLine($"Loaded version: {instance.Version}");
+            Debug.WriteLine($"[DEBUG] Loaded LastPatchedVersion: {instance.LastPatchedVersion}");
         }
 
         public static void ResetDefaults()
         {
+            Debug.WriteLine($"[DEBUG] Resetting to default values");
             instance = new IniLibrary();
             instance.AutoPlay = "false";
             instance.AutoPatch = "false";
@@ -82,6 +130,5 @@ namespace THJPatcher
             instance.Version = "1.0.0";
             instance.LastPatchedVersion = "";
         }
-
     }
 }
