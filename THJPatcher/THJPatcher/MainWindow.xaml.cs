@@ -796,6 +796,7 @@ namespace THJPatcher
 
             string elapsed = start.Elapsed.ToString("ss\\.ff");
             StatusLibrary.Log($"Complete! Patched {generateSize(patchedBytes)} in {elapsed} seconds. Press Play to begin.");
+            IniLibrary.instance.LastPatchedVersion = filelist.version;
             IniLibrary.instance.Version = version;
             IniLibrary.Save();
         }
