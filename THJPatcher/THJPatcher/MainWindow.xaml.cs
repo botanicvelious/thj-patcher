@@ -777,6 +777,12 @@ namespace THJPatcher
             }
 
             StatusLibrary.SetProgress(10000);
+            
+            // Update LastPatchedVersion and save configuration
+            IniLibrary.instance.LastPatchedVersion = filelist.version;
+            IniLibrary.Save();
+            Debug.WriteLine($"[DEBUG] Updated LastPatchedVersion to: {filelist.version}");
+
             if (patchedBytes == 0)
             {
                 string version = filelist.version;
@@ -790,7 +796,6 @@ namespace THJPatcher
 
             string elapsed = start.Elapsed.ToString("ss\\.ff");
             StatusLibrary.Log($"Complete! Patched {generateSize(patchedBytes)} in {elapsed} seconds. Press Play to begin.");
-            IniLibrary.instance.LastPatchedVersion = filelist.version;
             IniLibrary.instance.Version = version;
             IniLibrary.Save();
         }
