@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 using System.Windows.Forms;
+using System.Diagnostics;
 
 namespace THJPatcher
 {
@@ -23,12 +24,20 @@ namespace THJPatcher
 
         public static void Save()
         {
-            using (var writer = File.CreateText($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}\\thjpatcher.yml"))
+            try
             {
-                var serializer = new SerializerBuilder()
-                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
-                    .Build();
-                serializer.Serialize(writer, instance);
+                using (var writer = File.CreateText($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}\\thjpatcher.yml"))
+                {
+                    var serializer = new SerializerBuilder()
+                        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                        .Build();
+                    serializer.Serialize(writer, instance);
+                }
+                Debug.WriteLine($"Saved version: {instance.Version}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error saving config: {ex.Message}");
             }
         }
 
@@ -58,6 +67,9 @@ namespace THJPatcher
             if (instance.PatcherUrl == null) instance.PatcherUrl = "";
             if (instance.FileName == null) instance.FileName = "";
             if (instance.Version == null) instance.Version = "1.0.0";
+            if (instance.LastPatchedVersion == null) instance.LastPatchedVersion = "";
+
+            Debug.WriteLine($"Loaded version: {instance.Version}");
         }
 
         public static void ResetDefaults()
@@ -68,6 +80,19 @@ namespace THJPatcher
             instance.PatcherUrl = "";
             instance.FileName = "";
             instance.Version = "1.0.0";
+            instance.LastPatchedVersion = "";
+        }
+
+        public void Save()
+        {
+            try
+            {
+                File.WriteAllText("patcher.ini", $"LastPatchedVersion={LastPatchedVersion}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error saving version: {ex.Message}");
+            }
         }
     }
 }
