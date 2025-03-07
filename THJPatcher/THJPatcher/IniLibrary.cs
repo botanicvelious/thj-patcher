@@ -24,14 +24,9 @@ namespace THJPatcher
 
         private static string GetConfigPath()
         {
-            // Get the directory where filelist.yml is located, since that's our working directory
-            string workingDir = Path.GetDirectoryName(Path.Combine(Application.StartupPath, "filelist.yml"));
-            if (!Directory.Exists(workingDir))
-            {
-                workingDir = Path.GetDirectoryName(Application.ExecutablePath);
-            }
-            Debug.WriteLine($"[DEBUG] Working directory: {workingDir}");
-            return Path.Combine(workingDir, "thjpatcher.yml");
+            string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
+            Debug.WriteLine($"[DEBUG] Executable directory: {exeDir}");
+            return Path.Combine(exeDir, "thjpatcher.yml");
         }
 
         public static void Save()
@@ -41,7 +36,7 @@ namespace THJPatcher
                 string configPath = GetConfigPath();
                 Debug.WriteLine($"[DEBUG] Saving config to: {configPath}");
                 Debug.WriteLine($"[DEBUG] LastPatchedVersion before save: {instance.LastPatchedVersion}");
-                
+
                 using (var writer = File.CreateText(configPath))
                 {
                     var serializer = new SerializerBuilder()
@@ -117,6 +112,15 @@ namespace THJPatcher
             if (instance.LastPatchedVersion == null) instance.LastPatchedVersion = "";
 
             Debug.WriteLine($"[DEBUG] Loaded LastPatchedVersion: {instance.LastPatchedVersion}");
+
+            // Check if filelist.yml exists, if not, force a patch
+            string filelistPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "filelist.yml");
+            if (!File.Exists(filelistPath))
+            {
+                Debug.WriteLine($"[DEBUG] filelist.yml not found, forcing LastPatchedVersion to empty to trigger patch");
+                instance.LastPatchedVersion = "";
+                Save();
+            }
         }
 
         public static void ResetDefaults()
