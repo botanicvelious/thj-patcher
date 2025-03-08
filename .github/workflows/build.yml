@@ -1,6 +1,13 @@
 name: Build and Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      build_exe:
+        description: 'Build EXE file'
+        required: true
+        type: boolean
+        default: false
   push:
     branches: [ "master" ]
   pull_request:
@@ -18,13 +25,6 @@ env:
 permissions:
   contents: write
   packages: write
-
-inputs:
-  build_exe:
-    description: 'Build EXE file'
-    required: true
-    type: boolean
-    default: false
 
 jobs:
   staging:
@@ -87,13 +87,13 @@ jobs:
         dotnet-version: '8.0.x'
 
     - name: Build EXE (Optional)
-      if: ${{ inputs.build_exe }}
+      if: ${{ github.event.inputs.build_exe == 'true' }}
       run: |
         cd "THJPatcher"
         dotnet publish "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}"
 
     - name: Generate File List
-      if: ${{ inputs.build_exe }}
+      if: ${{ github.event.inputs.build_exe == 'true' }}
       run: |
         cd "rof"
         # Generate filelist.yml using PowerShell
@@ -121,7 +121,7 @@ jobs:
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@v1
-      if: ${{ inputs.build_exe }}
+      if: ${{ github.event.inputs.build_exe == 'true' }}
       with:
         tag_name: ${{ env.VERSION }}.${{ github.run_number }}
         name: Release ${{ env.VERSION }}.${{ github.run_number }}
