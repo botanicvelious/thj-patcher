@@ -99,31 +99,25 @@ jobs:
         cd "rof"
         # Generate filelist.yml using PowerShell
         $files = Get-ChildItem -Recurse -File
-        $yaml = @"
-version: $(Get-Date -Format "yyyyMMddHHmmss")
-downloadprefix: ${{env.STORAGE_URL}}
-downloads:
-"@
+        $version = Get-Date -Format "yyyyMMddHHmmss"
+        $content = "version: $version`ndownloadprefix: $env:STORAGE_URL`ndownloads:`n"
+        
         foreach ($file in $files) {
             $relativePath = $file.FullName.Replace($PWD.Path + "\", "").Replace("\", "/")
             $hash = (Get-FileHash -Path $file.FullName -Algorithm MD5).Hash
             $size = (Get-Item $file.FullName).Length
-            $yaml += @"
-
-  - name: $relativePath
-    md5: $hash
-    size: $size
-"@
+            $content += "  - name: $relativePath`n    md5: $hash`n    size: $size`n"
         }
-        $yaml | Out-File -FilePath "filelist_rof.yml" -Encoding UTF8
+        
+        Set-Content -Path "filelist_rof.yml" -Value $content -Encoding UTF8
         
         # Generate hash file for the patcher
         $patcherPath = "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
         $patcherHash = (Get-FileHash -Path $patcherPath -Algorithm MD5).Hash
-        $patcherHash | Out-File -FilePath "${{env.FILE_NAME}}-hash.txt" -Encoding UTF8
+        Set-Content -Path "$env:FILE_NAME-hash.txt" -Value $patcherHash -Encoding UTF8
         
         # Rename the patcher executable
-        Move-Item -Path $patcherPath -Destination "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe" -Force
+        Move-Item -Path $patcherPath -Destination "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/$env:FILE_NAME.exe" -Force
 
     - name: Create Release
       id: create_release
