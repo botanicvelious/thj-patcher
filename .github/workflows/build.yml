@@ -31,12 +31,12 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: 20
 
@@ -47,7 +47,7 @@ jobs:
       run: npm start
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
 
@@ -60,7 +60,7 @@ jobs:
         dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}-staging"
 
     - name: Upload staging artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: staging-build
         path: THJPatcher/THJPatcher/bin/Release/net8.0-windows/
@@ -71,18 +71,18 @@ jobs:
     if: github.ref == 'refs/heads/master'
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: Download staging artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: staging-build
         path: THJPatcher/THJPatcher/bin/Release/net8.0-windows/
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
 
