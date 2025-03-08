@@ -457,19 +457,13 @@ namespace THJPatcher
 
             // Now check if game files need updating by comparing filelist version
             string suffix = "rof";
-            string webUrl = $"{filelistUrl}{suffix}/filelist_{suffix}.yml";
+            string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
             StatusLibrary.Log($"[DEBUG] Attempting to download filelist from: {webUrl}");
             string filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
             if (filelistResponse != "")
             {
-                webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
-                StatusLibrary.Log($"[DEBUG] First URL failed, trying alternate URL: {webUrl}");
-                filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
-                if (filelistResponse != "")
-                {
-                    StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {filelistResponse}");
-                    return;
-                }
+                StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {filelistResponse}");
+                return;
             }
 
             // Read and check filelist version
@@ -669,17 +663,12 @@ namespace THJPatcher
             string suffix = "rof"; // Since we're only supporting RoF/RoF2
 
             // Download the filelist
-            string webUrl = $"{filelistUrl}{suffix}/filelist_{suffix}.yml";
+            string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
             string response = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
             if (response != "")
             {
-                webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
-                response = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
-                if (response != "")
-                {
-                    StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {response}");
-                    return;
-                }
+                StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {response}");
+                return;
             }
 
             // Parse the filelist
