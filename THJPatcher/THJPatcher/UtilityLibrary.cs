@@ -11,12 +11,32 @@ using System.Threading;
 using YamlDotNet.Core.Tokens;
 using System.Runtime.InteropServices.ComTypes;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 namespace THJPatcher
 {
     /* General Utility Methods */
-    class UtilityLibrary
+    public static class UtilityLibrary
     {
+        // Win32 constants for window management
+        private const int SW_RESTORE = 9;
+        private const int SW_SHOW = 5;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
+        // Win32 API imports
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, 
+            int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
         //Download a file to current directory
         public static async Task<string> DownloadFile(CancellationTokenSource cts, string url, string outFile)
         {
@@ -97,7 +117,30 @@ namespace THJPatcher
                 WorkingDirectory = System.IO.Path.GetDirectoryName(Application.ExecutablePath)
             };
 
-            return System.Diagnostics.Process.Start(startInfo);
+            var process = System.Diagnostics.Process.Start(startInfo);
+
+            // Wait for the window to be created (up to 10 seconds)
+            for (int i = 0; i < 20 && process.MainWindowHandle == IntPtr.Zero; i++)
+            {
+                Thread.Sleep(500);
+                process.Refresh();
+            }
+
+            if (process.MainWindowHandle != IntPtr.Zero)
+            {
+                // Ensure window is not minimized
+                if (IsIconic(process.MainWindowHandle))
+                {
+                    ShowWindow(process.MainWindowHandle, SW_RESTORE);
+                }
+
+                // Force window to show properly
+                ShowWindow(process.MainWindowHandle, SW_SHOW);
+                SetWindowPos(process.MainWindowHandle, IntPtr.Zero, 0, 0, 0, 0, 
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            }
+
+            return process;
         }
 
         //Pass the working directory (or later, you can pass another directory) and it returns a hash if the file is found
