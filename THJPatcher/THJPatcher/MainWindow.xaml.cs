@@ -153,8 +153,9 @@ namespace THJPatcher
             logPanel.Visibility = Visibility.Visible;
         }
 
-        private void Apply4GBPatch_Click(object sender, RoutedEventArgs e)
+        private async void Apply4GBPatch_Click(object sender, RoutedEventArgs e)
         {
+            btn4GBPatch.IsEnabled = false;
             try
             {
                 string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
@@ -167,10 +168,10 @@ namespace THJPatcher
                 }
 
                 // First check if patch is already applied
-                if (Utilities.PEModifier.Is4GBPatchApplied(eqExePath))
+                bool isPatchApplied = await Task.Run(() => Utilities.PEModifier.Is4GBPatchApplied(eqExePath));
+                if (isPatchApplied)
                 {
                     MessageBox.Show("4GB patch is already applied to eqgame.exe", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    btn4GBPatch.IsEnabled = false;
                     btn4GBPatch.ToolTip = "4GB patch is already applied to eqgame.exe";
                     return;
                 }
@@ -183,14 +184,15 @@ namespace THJPatcher
                 }
 
                 // Apply the patch
-                if (Utilities.PEModifier.Apply4GBPatch(eqExePath))
+                bool success = await Task.Run(() => Utilities.PEModifier.Apply4GBPatch(eqExePath));
+                if (success)
                 {
                     // Double-check if the patch was actually applied
-                    if (Utilities.PEModifier.Is4GBPatchApplied(eqExePath))
+                    bool verifyPatch = await Task.Run(() => Utilities.PEModifier.Is4GBPatchApplied(eqExePath));
+                    if (verifyPatch)
                     {
                         MessageBox.Show("Successfully applied 4GB patch. A backup of the original file has been created as eqgame.exe.bak", 
                             "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-                        btn4GBPatch.IsEnabled = false;
                         btn4GBPatch.ToolTip = "4GB patch is already applied to eqgame.exe";
                     }
                     else
@@ -208,6 +210,10 @@ namespace THJPatcher
             catch (Exception ex)
             {
                 MessageBox.Show($"Error applying 4GB patch: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                btn4GBPatch.IsEnabled = true;
             }
         }
 
@@ -252,8 +258,9 @@ namespace THJPatcher
             }
         }
 
-        private void OptimizeGraphics_Click(object sender, RoutedEventArgs e)
+        private async void OptimizeGraphics_Click(object sender, RoutedEventArgs e)
         {
+            btnOptimizeGraphics.IsEnabled = false;
             try
             {
                 string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
@@ -261,42 +268,46 @@ namespace THJPatcher
 
                 if (File.Exists(eqcfgPath))
                 {
-                    var lines = File.ReadAllLines(eqcfgPath);
-                    var optimizations = new Dictionary<string, string>
+                    await Task.Run(() =>
                     {
-                        { "MaxFPS=", "MaxFPS=60" },
-                        { "MaxBackgroundFPS=", "MaxBackgroundFPS=60" },
-                        { "WaterReflections=", "WaterReflections=0" },
-                        { "ParticleDensity=", "ParticleDensity=1000" },
-                        { "SpellParticleDensity=", "SpellParticleDensity=1000" },
-                        { "EnableVSync=", "EnableVSync=0" }
-                    };
-
-                    bool[] found = new bool[optimizations.Count];
-                    for (int i = 0; i < lines.Length; i++)
-                    {
-                        foreach (var opt in optimizations)
+                        var lines = File.ReadAllLines(eqcfgPath);
+                        var optimizations = new Dictionary<string, string>
                         {
-                            if (lines[i].StartsWith(opt.Key))
+                            { "MaxFPS=", "MaxFPS=60" },
+                            { "MaxBackgroundFPS=", "MaxBackgroundFPS=60" },
+                            { "WaterReflections=", "WaterReflections=0" },
+                            { "ParticleDensity=", "ParticleDensity=1000" },
+                            { "SpellParticleDensity=", "SpellParticleDensity=1000" },
+                            { "EnableVSync=", "EnableVSync=0" }
+                        };
+
+                        bool[] found = new bool[optimizations.Count];
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            foreach (var opt in optimizations)
                             {
-                                lines[i] = opt.Value;
-                                found[Array.IndexOf(optimizations.Keys.ToArray(), opt.Key)] = true;
+                                if (lines[i].StartsWith(opt.Key))
+                                {
+                                    lines[i] = opt.Value;
+                                    found[Array.IndexOf(optimizations.Keys.ToArray(), opt.Key)] = true;
+                                }
                             }
                         }
-                    }
 
-                    var notFound = optimizations.Where((kvp, index) => !found[index]);
-                    if (notFound.Any())
-                    {
-                        Array.Resize(ref lines, lines.Length + notFound.Count());
-                        int index = lines.Length - notFound.Count();
-                        foreach (var opt in notFound)
+                        var notFound = optimizations.Where((kvp, index) => !found[index]);
+                        if (notFound.Any())
                         {
-                            lines[index++] = opt.Value;
+                            Array.Resize(ref lines, lines.Length + notFound.Count());
+                            int index = lines.Length - notFound.Count();
+                            foreach (var opt in notFound)
+                            {
+                                lines[index++] = opt.Value;
+                            }
                         }
-                    }
 
-                    File.WriteAllLines(eqcfgPath, lines);
+                        File.WriteAllLines(eqcfgPath, lines);
+                    });
+
                     MessageBox.Show("Graphics settings have been optimized", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
@@ -308,24 +319,32 @@ namespace THJPatcher
             {
                 MessageBox.Show($"Error optimizing graphics: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            finally
+            {
+                btnOptimizeGraphics.IsEnabled = true;
+            }
         }
 
-        private void ClearCache_Click(object sender, RoutedEventArgs e)
+        private async void ClearCache_Click(object sender, RoutedEventArgs e)
         {
+            btnClearCache.IsEnabled = false;
             try
             {
                 string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
                 string[] cacheDirs = { "dbstr", "maps" };
 
-                foreach (string dir in cacheDirs)
+                await Task.Run(() =>
                 {
-                    string path = Path.Combine(eqPath, dir);
-                    if (Directory.Exists(path))
+                    foreach (string dir in cacheDirs)
                     {
-                        Directory.Delete(path, true);
-                        Directory.CreateDirectory(path);
+                        string path = Path.Combine(eqPath, dir);
+                        if (Directory.Exists(path))
+                        {
+                            Directory.Delete(path, true);
+                            Directory.CreateDirectory(path);
+                        }
                     }
-                }
+                });
 
                 MessageBox.Show("Cache has been cleared", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -333,29 +352,41 @@ namespace THJPatcher
             {
                 MessageBox.Show($"Error clearing cache: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            finally
+            {
+                btnClearCache.IsEnabled = true;
+            }
         }
 
-        private void ResetSettings_Click(object sender, RoutedEventArgs e)
+        private async void ResetSettings_Click(object sender, RoutedEventArgs e)
         {
+            btnResetSettings.IsEnabled = false;
             try
             {
                 string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
                 string[] configFiles = { "eqclient.ini", "eqclient_local.ini" };
 
-                foreach (string file in configFiles)
+                await Task.Run(() =>
                 {
-                    string path = Path.Combine(eqPath, file);
-                    if (File.Exists(path))
+                    foreach (string file in configFiles)
                     {
-                        File.Delete(path);
+                        string path = Path.Combine(eqPath, file);
+                        if (File.Exists(path))
+                        {
+                            File.Delete(path);
+                        }
                     }
-                }
+                });
 
                 MessageBox.Show("Settings have been reset. They will be recreated when you next launch EverQuest.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error resetting settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                btnResetSettings.IsEnabled = true;
             }
         }
 
@@ -618,27 +649,28 @@ namespace THJPatcher
             StatusLibrary.SetProgress(0);
 
             // Handle self-update first if needed and not in debug mode
-            /*
             if (!isDebugMode && myHash != "" && isNeedingSelfUpdate)
             {
                 StatusLibrary.Log("Downloading update...");
                 string url = $"{patcherUrl}/{fileName}.exe";
                 try
                 {
-                    var data = await UtilityLibrary.Download(cts, url);
+                    var data = await Task.Run(async () => await UtilityLibrary.Download(cts, url));
                     string localExePath = System.Windows.Forms.Application.ExecutablePath;
                     string localExeName = Path.GetFileName(localExePath);
-                    StatusLibrary.Log($"[DEBUG] Saving update as: {localExeName}");
                     
                     if (File.Exists(localExePath + ".old"))
                     {
-                        File.Delete(localExePath + ".old");
+                        await Task.Run(() => File.Delete(localExePath + ".old"));
                     }
-                    File.Move(localExePath, localExePath + ".old");
-                    using (var w = File.Create(localExePath))
+                    await Task.Run(() => File.Move(localExePath, localExePath + ".old"));
+                    await Task.Run(async () =>
                     {
-                        await w.WriteAsync(data, 0, data.Length, cts.Token);
-                    }
+                        using (var w = File.Create(localExePath))
+                        {
+                            await w.WriteAsync(data, 0, data.Length, cts.Token);
+                        }
+                    });
                     StatusLibrary.Log($"Self update complete. New version will be used next run.");
                 }
                 catch (Exception e)
@@ -647,11 +679,6 @@ namespace THJPatcher
                 }
                 isNeedingSelfUpdate = false;
             }
-            else if (isDebugMode)
-            {
-                StatusLibrary.Log("[DEBUG] Debug mode enabled - skipping patcher self-update");
-            }
-            */
 
             if (isPatchCancelled)
             {
@@ -673,24 +700,27 @@ namespace THJPatcher
 
             // Parse the filelist
             FileList filelist;
-            using (var input = File.OpenText($"{Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath)}\\filelist.yml"))
+            using (var input = await Task.Run(() => File.OpenText($"{Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath)}\\filelist.yml")))
             {
                 var deserializerBuilder = new DeserializerBuilder()
                     .WithNamingConvention(CamelCaseNamingConvention.Instance)
                     .Build();
-                filelist = deserializerBuilder.Deserialize<FileList>(input);
+                filelist = await Task.Run(() => deserializerBuilder.Deserialize<FileList>(input));
             }
 
             // Calculate total patch size
-            double totalBytes = 0;
+            double totalBytes = await Task.Run(() =>
+            {
+                double total = 0;
+                foreach (var entry in filelist.downloads)
+                {
+                    total += entry.size;
+                }
+                return total == 0 ? 1 : total;
+            });
+
             double currentBytes = 1;
             double patchedBytes = 0;
-
-            foreach (var entry in filelist.downloads)
-            {
-                totalBytes += entry.size;
-            }
-            if (totalBytes == 0) totalBytes = 1;
 
             // Download and patch files
             if (!filelist.downloadprefix.EndsWith("/")) filelist.downloadprefix += "/";
@@ -705,16 +735,16 @@ namespace THJPatcher
                 StatusLibrary.SetProgress((int)(currentBytes / totalBytes * 10000));
 
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
-                if (!UtilityLibrary.IsPathChild(path))
+                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
                 {
                     StatusLibrary.Log("Path " + path + " might be outside of your Everquest directory. Skipping download to this location.");
                     continue;
                 }
 
                 // Check if file exists and is already patched
-                if (File.Exists(path))
+                if (await Task.Run(() => File.Exists(path)))
                 {
-                    var md5 = UtilityLibrary.GetMD5(path);
+                    var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
                     if (md5.ToUpper() == entry.md5.ToUpper())
                     {
                         currentBytes += entry.size;
@@ -746,21 +776,23 @@ namespace THJPatcher
             {
                 foreach (var entry in filelist.deletes)
                 {
-                    var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
                     if (isPatchCancelled)
                     {
                         StatusLibrary.Log("Patching cancelled.");
                         return;
                     }
-                    if (!UtilityLibrary.IsPathChild(path))
+
+                    var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+                    if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
                     {
                         StatusLibrary.Log("Path " + entry.name + " might be outside your Everquest directory. Skipping deletion of this file.");
                         continue;
                     }
-                    if (File.Exists(path))
+
+                    if (await Task.Run(() => File.Exists(path)))
                     {
                         StatusLibrary.Log("Deleting " + entry.name + "...");
-                        File.Delete(path);
+                        await Task.Run(() => File.Delete(path));
                     }
                 }
             }
@@ -769,8 +801,7 @@ namespace THJPatcher
             
             // Update LastPatchedVersion and save configuration
             IniLibrary.instance.LastPatchedVersion = filelist.version;
-            IniLibrary.Save();
-            Debug.WriteLine($"[DEBUG] Updated LastPatchedVersion to: {filelist.version}");
+            await Task.Run(() => IniLibrary.Save());
 
             if (patchedBytes == 0)
             {
@@ -787,7 +818,7 @@ namespace THJPatcher
             StatusLibrary.Log($"Complete! Patched {generateSize(patchedBytes)} in {elapsed} seconds. Press Play to begin.");
             IniLibrary.instance.LastPatchedVersion = filelist.version;
             IniLibrary.instance.Version = version;
-            IniLibrary.Save();
+            await Task.Run(() => IniLibrary.Save());
         }
 
         private string generateSize(double size)

@@ -134,7 +134,7 @@
                     Orientation="Vertical" 
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Margin="80,-200,0,0">
+                    Margin="80,-230,0,0">
             
             <!-- Links Section -->
             <StackPanel Margin="0,0,0,0">
@@ -145,6 +145,14 @@
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
                         Tag="https://heroesjourneyemu.com/"/>
+                
+                <Button Content="THJ Wiki"
+                        Width="200"
+                        Height="50"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource GoldButton}"
+                        Click="LinkButton_Click"
+                        Tag="https://wiki.heroesjourneyemu.com/"/>
                 
                 <Button Content="THJDI Item Search"
                         Width="200"
