@@ -140,7 +140,7 @@
                     Orientation="Vertical" 
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Margin="75,-230,0,0">
+                    Margin="80,-230,0,0">
             
             <!-- Links Section -->
             <StackPanel Margin="0,0,0,0">
