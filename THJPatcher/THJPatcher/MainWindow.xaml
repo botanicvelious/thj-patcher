@@ -84,7 +84,9 @@
         </Grid.RowDefinitions>
 
         <!-- Background Image -->
-        <Image Source="pack://application:,,,/Launcher_Window.png" Stretch="UniformToFill" Grid.RowSpan="4"/>
+        <Image Source="pack://application:,,,/Launcher_Window.png" 
+               Stretch="Fill" 
+               Grid.RowSpan="4"/>
 
         <!-- Hidden Controls (for functionality) -->
         <Grid Grid.Row="0" Visibility="Collapsed">
