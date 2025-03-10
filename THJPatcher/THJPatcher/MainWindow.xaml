@@ -140,45 +140,45 @@
                     Orientation="Vertical" 
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Margin="80,-230,0,0">
+                    Margin="75,-230,0,0">
             
             <!-- Links Section -->
             <StackPanel Margin="0,0,0,0">
                 <Button Content="THJ Website"
-                        Width="200"
-                        Height="50"
+                        Width="160"
+                        Height="40"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
                         Tag="https://heroesjourneyemu.com/"/>
                 
                 <Button Content="THJ Wiki"
-                        Width="200"
-                        Height="50"
+                        Width="160"
+                        Height="40"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
                         Tag="https://wiki.heroesjourneyemu.com/"/>
                 
                 <Button Content="THJDI Item Search"
-                        Width="200"
-                        Height="50"
+                        Width="160"
+                        Height="40"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
                         Tag="https://www.thjdi.cc/"/>
                 
                 <Button Content="EQDB Item Search"
-                        Width="200"
-                        Height="50"
+                        Width="160"
+                        Height="40"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
                         Tag="https://eqdb.net/"/>
 
                 <Button Content="DirectX 9"
-                        Width="200"
-                        Height="50"
+                        Width="160"
+                        Height="40"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
@@ -187,8 +187,8 @@
 
                 <Button x:Name="btnOptimizations"
                         Content="Optimizations"
-                        Width="200"
-                        Height="50"
+                        Width="160"
+                        Height="40"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="OptimizationsButton_Click"/>
@@ -197,16 +197,16 @@
             <Button x:Name="btnPatch"
                     Content="PATCH"
                     Margin="0,10,0,0"
-                    Width="200"
-                    Height="50"
+                    Width="160"
+                    Height="40"
                     Visibility="Collapsed"
                     Style="{StaticResource GoldButton}"/>
 
             <Button x:Name="btnPlay"
                     Content="PLAY"
                     Margin="0,10,0,0"
-                    Width="200"
-                    Height="50"
+                    Width="160"
+                    Height="40"
                     Visibility="Collapsed"
                     Style="{StaticResource GoldButton}"/>
         </StackPanel>

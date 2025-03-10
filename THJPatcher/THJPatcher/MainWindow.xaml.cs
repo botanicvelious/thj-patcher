@@ -395,6 +395,24 @@ namespace THJPatcher
             isLoading = true;
             cts = new CancellationTokenSource();
 
+            // Create DXVK configuration for Linux/Proton compatibility
+            try
+            {
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string dxvkPath = Path.Combine(eqPath, "dxvk.conf");
+                string dxvkContent = "[heroesjourneyeq-test.exe]\nd3d9.shaderModel = 1";
+                
+                if (!File.Exists(dxvkPath))
+                {
+                    File.WriteAllText(dxvkPath, dxvkContent);
+                    StatusLibrary.Log("[DEBUG] Created DXVK configuration for Linux/Proton compatibility");
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[DEBUG] Failed to create DXVK configuration: {ex.Message}");
+            }
+
             IniLibrary.Load();
             isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
