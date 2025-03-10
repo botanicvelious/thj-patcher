@@ -72,7 +72,6 @@
             </Style>
 
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
-            <RenderOptions x:Key="RenderOptions" RenderMode="SoftwareOnly"/>
         </ResourceDictionary>
     </Window.Resources>
 
