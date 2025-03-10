@@ -72,7 +72,7 @@
             </Style>
 
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
-            <System.Windows.Media.RenderOptions x:Key="RenderOptions" RenderMode="SoftwareOnly"/>
+            <RenderOptions x:Key="RenderOptions" RenderMode="SoftwareOnly"/>
         </ResourceDictionary>
     </Window.Resources>
 
