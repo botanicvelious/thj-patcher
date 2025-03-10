@@ -13,12 +13,14 @@
         AllowsTransparency="True"
         MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
         TextElement.Foreground="{DynamicResource MaterialDesignBody}"
-        Background="Transparent"
+        Background="#FF1A1A2E"
         TextElement.FontWeight="Regular"
         TextElement.FontSize="13"
         TextOptions.TextFormattingMode="Ideal"
-        TextOptions.TextRenderingMode="Auto"
-        FontFamily="{materialDesign:MaterialDesignFont}">
+        TextOptions.TextRenderingMode="ClearType"
+        FontFamily="{materialDesign:MaterialDesignFont}"
+        RenderOptions.BitmapScalingMode="HighQuality"
+        UseLayoutRounding="True">
     
     <Window.Resources>
         <ResourceDictionary>
@@ -68,6 +70,9 @@
                     </Trigger>
                 </Style.Triggers>
             </Style>
+
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <System.Windows.Media.RenderOptions x:Key="RenderOptions" RenderMode="SoftwareOnly"/>
         </ResourceDictionary>
     </Window.Resources>
 
