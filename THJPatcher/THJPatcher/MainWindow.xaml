@@ -185,6 +185,14 @@
                         ToolTip="Download DirectX 9 from Microsoft (required for EverQuest)"
                         Tag="https://download.microsoft.com/download/1/7/1/1718CCC4-6315-4D8E-9543-8E28A4E18C4C/dxwebsetup.exe"/>
 
+                <Button x:Name="btnChangelog"
+                        Content="Changelog"
+                        Width="160"
+                        Height="40"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource GoldButton}"
+                        Click="ChangelogButton_Click"/>
+
                 <Button x:Name="btnOptimizations"
                         Content="Optimizations"
                         Width="160"

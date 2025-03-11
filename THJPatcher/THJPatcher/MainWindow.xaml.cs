@@ -85,12 +85,11 @@ namespace THJPatcher
             chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
 
-            // Initialize changelogs and check for updates
+            // Initialize changelogs
             InitializeChangelogs();
             
             // Get the patcher token from environment variable (set by GitHub Actions)
             patcherToken = Environment.GetEnvironmentVariable("PATCHER_TOKEN") ?? "";
-            CheckChangelogAsync();
 
             // Initialize server configuration
             serverName = "The Heroes Journey";
@@ -429,6 +428,9 @@ namespace THJPatcher
         {
             isLoading = true;
             cts = new CancellationTokenSource();
+
+            // Check for changelog updates
+            await CheckChangelogAsync();
 
             // Create DXVK configuration for Linux/Proton compatibility
             try
@@ -996,17 +998,22 @@ namespace THJPatcher
         {
             try
             {
+                StatusLibrary.Log("[DEBUG] Checking for changelog updates...");
                 using (var client = new HttpClient())
                 {
                     client.DefaultRequestHeaders.Add("x-patcher-token", patcherToken);
+                    StatusLibrary.Log($"[DEBUG] Using patcher token: {(string.IsNullOrEmpty(patcherToken) ? "Not set" : "Set")}");
+                    
                     var response = await client.GetStringAsync(changelogEndpoint);
                     var changelogData = JsonSerializer.Deserialize<ChangelogData>(response);
+                    StatusLibrary.Log($"[DEBUG] Changelog API response - Status: {changelogData?.Status}, Found: {changelogData?.Found}");
 
                     if (changelogData?.Found == true && changelogData.Changelog != null)
                     {
                         // Check if this changelog is new (not in our list)
                         if (!changelogs.Any(c => c.Message_Id == changelogData.Changelog.Message_Id))
                         {
+                            StatusLibrary.Log("[DEBUG] New changelog found, updating display...");
                             // Convert API changelog to our format
                             var newChangelog = new ChangelogInfo
                             {
@@ -1023,12 +1030,18 @@ namespace THJPatcher
 
                             // Show popup for new changes
                             CustomMessageBox.Show($"New changes available:\n\n{FormatChangelog(newChangelog)}");
+                            StatusLibrary.Log("[DEBUG] Changelog popup displayed");
+                        }
+                        else
+                        {
+                            StatusLibrary.Log("[DEBUG] No new changelog updates found");
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
+                StatusLibrary.Log($"[DEBUG] Error checking changelog: {ex.Message}");
                 Debug.WriteLine($"Error checking changelog: {ex.Message}");
             }
         }
