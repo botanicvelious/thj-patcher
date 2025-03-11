@@ -1022,7 +1022,7 @@ namespace THJPatcher
                             FormatAllChangelogs();
 
                             // Show popup for new changes
-                            ShowChangelogPopup(newChangelog);
+                            CustomMessageBox.Show($"New changes available:\n\n{FormatChangelog(newChangelog)}");
                         }
                     }
                 }
@@ -1041,26 +1041,11 @@ namespace THJPatcher
                    $"{changelog.Content.Trim()}\n";
         }
 
-        private void ShowChangelogPopup(ChangelogInfo changelog)
-        {
-            var messageBox = new CustomMessageBox
-            {
-                Title = "New Changes Available",
-                Message = FormatChangelog(changelog),
-                MessageType = CustomMessageBox.MessageTypes.Info
-            };
-            messageBox.ShowDialog();
-        }
-
         private void ChangelogButton_Click(object sender, RoutedEventArgs e)
         {
-            var messageBox = new CustomMessageBox
-            {
-                Title = "Changelog History",
-                Message = changelogContent,
-                MessageType = CustomMessageBox.MessageTypes.Info
-            };
-            messageBox.ShowDialog();
+            var dialog = new CustomMessageBox(changelogContent);
+            dialog.Title = "Changelog History";
+            dialog.ShowDialog();
         }
     }
 } 
