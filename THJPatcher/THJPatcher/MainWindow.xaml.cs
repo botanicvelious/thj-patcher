@@ -14,9 +14,31 @@ using MessageBox = System.Windows.MessageBox;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 using THJPatcher.Models;
+using System.Net.Http.Headers;
+using System.Text.Json;
+using System.Linq;
+using System.Net.Http;
 
 namespace THJPatcher
 {
+    public class ChangelogData
+    {
+        public string Status { get; set; }
+        public bool Found { get; set; }
+        public ChangelogInfo Changelog { get; set; }
+    }
+
+    public class ChangelogInfo
+    {
+        public string Raw_Content { get; set; }
+        public string Formatted_Content { get; set; }
+        public string Content { get; set; }
+        public string Author { get; set; }
+        public DateTime Timestamp { get; set; }
+        public string Message_Id { get; set; }
+        public string Version { get; set; }
+    }
+
     public partial class MainWindow : Window
     {
         private readonly SolidColorBrush _redBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 0, 0));
@@ -48,6 +70,12 @@ namespace THJPatcher
 
         private Dictionary<VersionTypes, ClientVersion> clientVersions = new Dictionary<VersionTypes, ClientVersion>();
 
+        private List<ChangelogInfo> changelogs = new List<ChangelogInfo>();
+        private string changelogContent = "";
+        private string lastMessageId = "";
+        private readonly string changelogEndpoint = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
+        private readonly string patcherToken;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -56,6 +84,13 @@ namespace THJPatcher
             btnPlay.Click += BtnPlay_Click;
             chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
+
+            // Initialize changelogs and check for updates
+            InitializeChangelogs();
+            
+            // Get the patcher token from environment variable (set by GitHub Actions)
+            patcherToken = Environment.GetEnvironmentVariable("PATCHER_TOKEN") ?? "";
+            CheckChangelogAsync();
 
             // Initialize server configuration
             serverName = "The Heroes Journey";
@@ -924,6 +959,108 @@ namespace THJPatcher
                 btn4GBPatch.IsEnabled = false;
                 btn4GBPatch.ToolTip = "Error checking patch status: " + ex.Message;
             }
+        }
+
+        private void InitializeChangelogs()
+        {
+            // Add changelogs in reverse chronological order (internal history)
+            changelogs.Add(new ChangelogInfo
+            {
+                Version = "1.0.6.106",
+                Timestamp = DateTime.Parse("2024-03-11"),
+                Author = "Catapultam",
+                Content = @"- Re-enabled Zone State Preservation
+- Fixed Bazaar Parcel Purchase Discount
+- Fixed incorrect mobs spawning in restored respawning instances
+- Fixed The Polymorphist not accepting Echo of Memory for deity changes
+- Praeserti no longer flee
+- Fixed Bladed Song
+- Removed Parcel fee for Bazaar purchases in EC and Bazaar",
+                Message_Id = "1348875672461901824" // Add message_id to track against API updates
+            });
+
+            // Format all changelogs
+            FormatAllChangelogs();
+        }
+
+        private void FormatAllChangelogs()
+        {
+            changelogContent = "";
+            foreach (var log in changelogs.OrderByDescending(x => x.Timestamp))
+            {
+                changelogContent += FormatChangelog(log) + "\n---\n\n";
+            }
+        }
+
+        private async Task CheckChangelogAsync()
+        {
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Add("x-patcher-token", patcherToken);
+                    var response = await client.GetStringAsync(changelogEndpoint);
+                    var changelogData = JsonSerializer.Deserialize<ChangelogData>(response);
+
+                    if (changelogData?.Found == true && changelogData.Changelog != null)
+                    {
+                        // Check if this changelog is new (not in our list)
+                        if (!changelogs.Any(c => c.Message_Id == changelogData.Changelog.Message_Id))
+                        {
+                            // Convert API changelog to our format
+                            var newChangelog = new ChangelogInfo
+                            {
+                                Content = changelogData.Changelog.Formatted_Content,
+                                Author = changelogData.Changelog.Author,
+                                Timestamp = changelogData.Changelog.Timestamp,
+                                Message_Id = changelogData.Changelog.Message_Id,
+                                Version = version // Use current version or parse from content if needed
+                            };
+
+                            // Add to our list and update display
+                            changelogs.Insert(0, newChangelog);
+                            FormatAllChangelogs();
+
+                            // Show popup for new changes
+                            ShowChangelogPopup(newChangelog);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking changelog: {ex.Message}");
+            }
+        }
+
+        private string FormatChangelog(ChangelogInfo changelog)
+        {
+            return $"# {changelog.Timestamp:MMMM dd, yyyy}" + 
+                   (string.IsNullOrEmpty(changelog.Version) ? "" : $" (v{changelog.Version})") + "\n" +
+                   $"## {changelog.Author}\n\n" +
+                   $"{changelog.Content.Trim()}\n";
+        }
+
+        private void ShowChangelogPopup(ChangelogInfo changelog)
+        {
+            var messageBox = new CustomMessageBox
+            {
+                Title = "New Changes Available",
+                Message = FormatChangelog(changelog),
+                MessageType = CustomMessageBox.MessageTypes.Info
+            };
+            messageBox.ShowDialog();
+        }
+
+        private void ChangelogButton_Click(object sender, RoutedEventArgs e)
+        {
+            var messageBox = new CustomMessageBox
+            {
+                Title = "Changelog History",
+                Message = changelogContent,
+                MessageType = CustomMessageBox.MessageTypes.Info
+            };
+            messageBox.ShowDialog();
         }
     }
 } 

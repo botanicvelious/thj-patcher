@@ -21,6 +21,7 @@ env:
   FILELIST_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
   PATCHER_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
   STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
+  PATCHER_TOKEN: ${{ secrets.PATCHER_TOKEN }}
 
 permissions:
   contents: write
@@ -57,7 +58,7 @@ jobs:
     - name: Build Application
       run: |
         cd "THJPatcher"
-        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}-staging"
+        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}-staging" /p:PATCHER_TOKEN="${{env.PATCHER_TOKEN}}"
 
     - name: Upload staging artifacts
       uses: actions/upload-artifact@v4
