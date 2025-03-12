@@ -113,6 +113,32 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    - name: Replace Patcher Token
+      shell: pwsh
+      run: |
+        Write-Host "Replacing token in Constants.cs (Production)..."
+        $constantsPath = "THJPatcher/THJPatcher/Constants.cs"
+        $content = Get-Content $constantsPath -Raw
+        
+        # Debug check (will mask the actual token)
+        $tokenLength = "${{ secrets.PATCHER_TOKEN }}".Length
+        Write-Host "Token length: $tokenLength"
+        
+        # Use double quotes to ensure proper variable expansion
+        $content = $content.Replace("__PATCHER_TOKEN__", "${{ secrets.PATCHER_TOKEN }}")
+        
+        # Save the file
+        Set-Content $constantsPath $content -NoNewline
+        
+        # Verify replacement (safely)
+        $newContent = Get-Content $constantsPath -Raw
+        if ($newContent.Contains("__PATCHER_TOKEN__")) {
+            Write-Host "::error::Token replacement failed!"
+            exit 1
+        } else {
+            Write-Host "Token replacement successful"
+        }
+
     - name: Build EXE (Optional)
       if: ${{ github.event.inputs.build_exe == 'true' }}
       run: |
