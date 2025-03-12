@@ -101,7 +101,6 @@ namespace THJPatcher
 
         private List<ChangelogInfo> changelogs = new List<ChangelogInfo>();
         private string changelogContent = "";
-        private string lastMessageId = "";
         private readonly string changelogEndpoint = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
         private readonly string patcherToken;
         private bool hasNewChangelogs = false;
@@ -1229,6 +1228,8 @@ namespace THJPatcher
                 string token = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
                 if (string.IsNullOrEmpty(token))
                 {
+                    StatusLibrary.Log("[ERROR] Unable to authenticate with changelog API");
+                    StatusLibrary.Log("Continuing....");
                     return;
                 }
 
@@ -1244,7 +1245,30 @@ namespace THJPatcher
                         try
                         {
                             var url = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
-                            var latestResponse = await client.GetStringAsync(url);
+                            var httpResponse = await client.GetAsync(url);
+                            
+                            if (httpResponse.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                            {
+                                StatusLibrary.Log("[ERROR] Authentication failed with changelog API");
+                                StatusLibrary.Log("Continuing....");
+                                return;
+                            }
+                            
+                            if (httpResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+                            {
+                                StatusLibrary.Log("[ERROR] Changelog API endpoint not found");
+                                StatusLibrary.Log("Continuing....");
+                                return;
+                            }
+
+                            if (!httpResponse.IsSuccessStatusCode)
+                            {
+                                StatusLibrary.Log("[ERROR] Failed to connect to changelog API");
+                                StatusLibrary.Log("Continuing....");
+                                return;
+                            }
+
+                            var latestResponse = await httpResponse.Content.ReadAsStringAsync();
                             if (!string.IsNullOrEmpty(latestResponse))
                             {
                                 var options = new JsonSerializerOptions
@@ -1253,10 +1277,10 @@ namespace THJPatcher
                                     AllowTrailingCommas = true
                                 };
 
-                                var response = JsonSerializer.Deserialize<ChangelogData>(latestResponse, options);
-                                if (response?.Found == true && response.Changelog != null)
+                                var changelogData = JsonSerializer.Deserialize<ChangelogData>(latestResponse, options);
+                                if (changelogData?.Found == true && changelogData.Changelog != null)
                                 {
-                                    if (response.Changelog.Message_Id != currentMessageId)
+                                    if (changelogData.Changelog.Message_Id != currentMessageId)
                                     {
                                         // Load existing entries
                                         var entries = IniLibrary.LoadChangelog();
@@ -1264,33 +1288,27 @@ namespace THJPatcher
                                         // Add new entry at the beginning
                                         entries.Insert(0, new Dictionary<string, string>
                                         {
-                                            ["raw_content"] = response.Changelog.Raw_Content,
-                                            ["formatted_content"] = response.Changelog.Formatted_Content,
-                                            ["author"] = response.Changelog.Author,
-                                            ["timestamp"] = response.Changelog.Timestamp.ToString("O"),
-                                            ["message_id"] = response.Changelog.Message_Id
+                                            ["raw_content"] = changelogData.Changelog.Raw_Content,
+                                            ["formatted_content"] = changelogData.Changelog.Formatted_Content,
+                                            ["author"] = changelogData.Changelog.Author,
+                                            ["timestamp"] = changelogData.Changelog.Timestamp.ToString("O"),
+                                            ["message_id"] = changelogData.Changelog.Message_Id
                                         });
 
                                         // Save updated changelog
                                         IniLibrary.SaveChangelog(entries);
                                         
                                         // Update changelogs list and set flag
-                                        changelogs.Insert(0, response.Changelog);
+                                        changelogs.Insert(0, changelogData.Changelog);
                                         hasNewChangelogs = true;
-                                    }
-                                    else
-                                    {
-                                        StatusLibrary.Log("No new changes.");
-                                        hasNewChangelogs = false;
                                     }
                                 }
                             }
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            StatusLibrary.Log("[ERROR] API failure to check for new changes....");
+                            StatusLibrary.Log("[ERROR] Failed to connect to changelog API");
                             StatusLibrary.Log("Continuing....");
-                            // Continue with existing changelog
                         }
                     }
                     return;
@@ -1303,63 +1321,71 @@ namespace THJPatcher
                     try
                     {
                         var url = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/changelog?all=true";
-                        var allResponse = await client.GetStringAsync(url);
+                        var httpResponse = await client.GetAsync(url);
                         
+                        if (httpResponse.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                        {
+                            StatusLibrary.Log("[ERROR] Authentication failed with changelog API");
+                            StatusLibrary.Log("Continuing....");
+                            return;
+                        }
+                        
+                        if (httpResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+                        {
+                            StatusLibrary.Log("[ERROR] Changelog API endpoint not found");
+                            StatusLibrary.Log("Continuing....");
+                            return;
+                        }
+
+                        if (!httpResponse.IsSuccessStatusCode)
+                        {
+                            StatusLibrary.Log("[ERROR] Failed to connect to changelog API");
+                            StatusLibrary.Log("Continuing....");
+                            return;
+                        }
+
+                        var allResponse = await httpResponse.Content.ReadAsStringAsync();
                         if (!string.IsNullOrEmpty(allResponse))
                         {
-                            try
+                            var options = new JsonSerializerOptions
                             {
-                                var options = new JsonSerializerOptions
-                                {
-                                    PropertyNameCaseInsensitive = true,
-                                    AllowTrailingCommas = true
-                                };
-                                
-                                var response = JsonSerializer.Deserialize<ChangelogResponse>(allResponse, options);
-
-                                if (response?.Changelogs != null && response.Changelogs.Count > 0)
-                                {
-                                    // Convert changelogs to the format expected by IniLibrary.SaveChangelog
-                                    var entries = response.Changelogs.Select(c => new Dictionary<string, string>
-                                    {
-                                        ["raw_content"] = c.Raw_Content,
-                                        ["formatted_content"] = c.Formatted_Content,
-                                        ["author"] = c.Author,
-                                        ["timestamp"] = c.Timestamp.ToString("O"),
-                                        ["message_id"] = c.Message_Id
-                                    }).ToList();
-
-                                    // Save the API response to changelog.yml
-                                    IniLibrary.SaveChangelog(entries);
-
-                                    // Update the changelogs list immediately and set flag
-                                    changelogs.Clear();
-                                    changelogs.AddRange(response.Changelogs);
-                                    hasNewChangelogs = true;
-                                }
-                            }
-                            catch (JsonException jex)
+                                PropertyNameCaseInsensitive = true,
+                                AllowTrailingCommas = true
+                            };
+                            
+                            var changelogResponse = JsonSerializer.Deserialize<ChangelogResponse>(allResponse, options);
+                            if (changelogResponse?.Changelogs != null && changelogResponse.Changelogs.Count > 0)
                             {
-                                StatusLibrary.Log("[ERROR] Failed to parse changelog data");
-                                StatusLibrary.Log("Continuing....");
+                                // Convert changelogs to the format expected by IniLibrary.SaveChangelog
+                                var entries = changelogResponse.Changelogs.Select(c => new Dictionary<string, string>
+                                {
+                                    ["raw_content"] = c.Raw_Content,
+                                    ["formatted_content"] = c.Formatted_Content,
+                                    ["author"] = c.Author,
+                                    ["timestamp"] = c.Timestamp.ToString("O"),
+                                    ["message_id"] = c.Message_Id
+                                }).ToList();
+
+                                // Save the API response to changelog.yml
+                                IniLibrary.SaveChangelog(entries);
+
+                                // Update the changelogs list immediately and set flag
+                                changelogs.Clear();
+                                changelogs.AddRange(changelogResponse.Changelogs);
+                                hasNewChangelogs = true;
                             }
                         }
                     }
-                    catch (HttpRequestException hex)
+                    catch (Exception)
                     {
-                        StatusLibrary.Log("[ERROR] HTTP request failed");
-                        StatusLibrary.Log("Continuing....");
-                    }
-                    catch (Exception ex)
-                    {
-                        StatusLibrary.Log("[ERROR] Failed to fetch changelogs from API");
+                        StatusLibrary.Log("[ERROR] Failed to connect to changelog API");
                         StatusLibrary.Log("Continuing....");
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                StatusLibrary.Log("[ERROR] Error in changelog check.");
+                StatusLibrary.Log("[ERROR] Failed to check for changelogs");
                 StatusLibrary.Log("Continuing....");
             }
         }
