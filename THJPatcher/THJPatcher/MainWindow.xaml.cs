@@ -121,6 +121,11 @@ namespace THJPatcher
             
             // Get the patcher token from Constants
             patcherToken = Constants.PATCHER_TOKEN;
+            StatusLibrary.Log($"[DEBUG] Patcher token length: {(string.IsNullOrEmpty(patcherToken) ? "0" : patcherToken.Length.ToString())}");
+            if (string.IsNullOrEmpty(patcherToken) || patcherToken == "__PATCHER_TOKEN__")
+            {
+                StatusLibrary.Log("[ERROR] Patcher token not properly initialized");
+            }
 
             // Initialize server configuration
             serverName = "The Heroes Journey";

@@ -277,7 +277,7 @@
             </Grid.RowDefinitions>
 
             <!-- Version Number -->
-            <TextBlock Text="v1.0.6"
+            <TextBlock Text="v1.0.8"
                      HorizontalAlignment="Right"
                      VerticalAlignment="Bottom"
                      FontSize="10"
