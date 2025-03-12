@@ -116,91 +116,11 @@ namespace THJPatcher
             chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
 
-           
-            try
-            {
-                string envPath = null;
-                string projectRoot = AppDomain.CurrentDomain.BaseDirectory;
-                
+            // Initialize changelogs
+            InitializeChangelogs();
             
-                for (int i = 0; i < 6; i++)
-                {
-                    projectRoot = Path.GetDirectoryName(projectRoot);
-                }
-
-                string[] possiblePaths = {
-                    Path.Combine(projectRoot, ".env"),
-                    Path.Combine(Directory.GetCurrentDirectory(), ".env"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".env"),
-                    Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "..", ".env"))
-                };
-
-              
-                foreach (var path in possiblePaths)
-                {
-
-                }
-
-                foreach (var path in possiblePaths)
-                {
-                    if (File.Exists(path))
-                    {
-                        envPath = path;
-
-                        
-                
-                        string[] lines = File.ReadAllLines(path);
-
-                        
-                        foreach (string line in lines)
-                        {
-                            if (!string.IsNullOrWhiteSpace(line) && !line.StartsWith("#"))
-                            {
-                                var parts = line.Split('=', 2);
-                                if (parts.Length == 2)
-                                {
-                                    string key = parts[0].Trim();
-                                    string value = parts[1].Trim();
-                                    
-                        
-                                    Environment.SetEnvironmentVariable(key, value, EnvironmentVariableTarget.Process);
-                                }
-                            }
-                        }
-                        break;
-                    }
-                }
-
-                if (envPath == null)
-                {
-
-                }
-            }
-            catch (Exception ex)
-            {
-
-            }
-
-
-            patcherToken = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
-            if (string.IsNullOrEmpty(patcherToken))
-            {
-
-            }
-            else
-            {
-
-                
-                var doubleCheck = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
-                if (string.IsNullOrEmpty(doubleCheck))
-                {
-
-                }
-                else
-                {
-
-                }
-            }
+            // Get the patcher token from Constants
+            patcherToken = Constants.PATCHER_TOKEN;
 
             // Initialize server configuration
             serverName = "The Heroes Journey";
@@ -1224,8 +1144,8 @@ namespace THJPatcher
                 string appPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
                 string changelogPath = Path.Combine(appPath, "changelog.yml");
 
-                // Get token from environment variable
-                string token = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
+                // Get token from Constants
+                string token = Constants.PATCHER_TOKEN;
                 if (string.IsNullOrEmpty(token))
                 {
                     StatusLibrary.Log("[ERROR] Unable to authenticate with changelog API");

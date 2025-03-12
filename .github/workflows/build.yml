@@ -55,10 +55,17 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore "THJPatcher/THJPatcher.sln"
 
+    - name: Replace Patcher Token
+      shell: pwsh
+      run: |
+        $content = Get-Content "THJPatcher/THJPatcher/Constants.cs" -Raw
+        $content = $content.Replace('__PATCHER_TOKEN__', '${{ secrets.PATCHER_TOKEN }}')
+        Set-Content "THJPatcher/THJPatcher/Constants.cs" $content -NoNewline
+
     - name: Build Application
       run: |
         cd "THJPatcher"
-        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}-staging" /p:PATCHER_TOKEN="${{env.PATCHER_TOKEN}}"
+        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}-staging"
 
     - name: Upload staging artifacts
       uses: actions/upload-artifact@v4
