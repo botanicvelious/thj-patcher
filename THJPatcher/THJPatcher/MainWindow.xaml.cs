@@ -611,7 +611,7 @@ namespace THJPatcher
             // Show latest changelog window if we have changelogs AND they're new
             if (changelogs.Any() && hasNewChangelogs)
             {
-                StatusLibrary.Log("[DEBUG] Showing latest changelog window");
+                StatusLibrary.Log("Showing latest changelog window");
                 var latestChangelog = changelogs.OrderByDescending(x => x.Timestamp).First();
                 var latestChangelogWindow = new LatestChangelogWindow(latestChangelog);
                 latestChangelogWindow.ShowDialog();
@@ -1225,7 +1225,6 @@ namespace THJPatcher
                 string appPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
                 string changelogPath = Path.Combine(appPath, "changelog.yml");
 
-
                 // Get token from environment variable
                 string token = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
                 if (string.IsNullOrEmpty(token))
@@ -1233,10 +1232,8 @@ namespace THJPatcher
                     return;
                 }
 
-
                 if (File.Exists(changelogPath))
                 {
-                    
                     // Get the latest message_id from yml
                     string currentMessageId = IniLibrary.GetLatestMessageId();
 
@@ -1247,7 +1244,6 @@ namespace THJPatcher
                         try
                         {
                             var url = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
-
                             var latestResponse = await client.GetStringAsync(url);
                             if (!string.IsNullOrEmpty(latestResponse))
                             {
@@ -1260,10 +1256,8 @@ namespace THJPatcher
                                 var response = JsonSerializer.Deserialize<ChangelogData>(latestResponse, options);
                                 if (response?.Found == true && response.Changelog != null)
                                 {
-
                                     if (response.Changelog.Message_Id != currentMessageId)
                                     {
-                                        
                                         // Load existing entries
                                         var entries = IniLibrary.LoadChangelog();
                                         
@@ -1294,7 +1288,9 @@ namespace THJPatcher
                         }
                         catch (Exception ex)
                         {
-                            
+                            StatusLibrary.Log("[ERROR] API failure to check for new changes....");
+                            StatusLibrary.Log("Continuing....");
+                            // Continue with existing changelog
                         }
                     }
                     return;
@@ -1307,10 +1303,7 @@ namespace THJPatcher
                     try
                     {
                         var url = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/changelog?all=true";
-                        
-
                         var allResponse = await client.GetStringAsync(url);
-                        
                         
                         if (!string.IsNullOrEmpty(allResponse))
                         {
@@ -1326,7 +1319,6 @@ namespace THJPatcher
 
                                 if (response?.Changelogs != null && response.Changelogs.Count > 0)
                                 {
-
                                     // Convert changelogs to the format expected by IniLibrary.SaveChangelog
                                     var entries = response.Changelogs.Select(c => new Dictionary<string, string>
                                     {
@@ -1345,32 +1337,30 @@ namespace THJPatcher
                                     changelogs.AddRange(response.Changelogs);
                                     hasNewChangelogs = true;
                                 }
-                                else
-                                {
-                                }
                             }
                             catch (JsonException jex)
                             {
-
+                                StatusLibrary.Log("[ERROR] Failed to parse changelog data");
+                                StatusLibrary.Log("Continuing....");
                             }
-                        }
-                        else
-                        {
                         }
                     }
                     catch (HttpRequestException hex)
                     {
-                        StatusLibrary.Log($"[ERROR] HTTP request failed: {hex.Message}");
+                        StatusLibrary.Log("[ERROR] HTTP request failed");
+                        StatusLibrary.Log("Continuing....");
                     }
                     catch (Exception ex)
                     {
-                        StatusLibrary.Log($"[ERROR] Unable to retrieve changelogs from API: {ex.Message}");
+                        StatusLibrary.Log("[ERROR] Failed to fetch changelogs from API");
+                        StatusLibrary.Log("Continuing....");
                     }
                 }
             }
             catch (Exception ex)
             {
-                StatusLibrary.Log($"[ERROR] Error in changelog check: {ex.Message}");
+                StatusLibrary.Log("[ERROR] Error in changelog check.");
+                StatusLibrary.Log("Continuing....");
             }
         }
     }
