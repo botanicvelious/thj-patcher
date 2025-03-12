@@ -29,6 +29,12 @@ namespace THJPatcher
             return Path.Combine(exeDir, "thjpatcher.yml");
         }
 
+        private static string GetChangelogPath()
+        {
+            string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
+            return Path.Combine(exeDir, "changelog.yml");
+        }
+
         public static void Save()
         {
             try
@@ -133,6 +139,68 @@ namespace THJPatcher
             instance.FileName = "";
             instance.Version = "1.0.0";
             instance.LastPatchedVersion = "";
+        }
+
+        public static string GetLatestMessageId()
+        {
+            try
+            {
+                var entries = LoadChangelog();
+                if (entries != null && entries.Count > 0)
+                {
+                    // Get the first entry (most recent) and return its message_id
+                    var firstEntry = entries[0];
+                    if (firstEntry.ContainsKey("message_id"))
+                    {
+                        return firstEntry["message_id"];
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[ERROR] Failed to get latest message_id: {ex.Message}");
+            }
+            return string.Empty;
+        }
+
+        public static void SaveChangelog(List<Dictionary<string, string>> entries)
+        {
+            try
+            {
+                string changelogPath = GetChangelogPath();
+                var serializer = new SerializerBuilder()
+                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                    .Build();
+                string contents = serializer.Serialize(entries);
+                File.WriteAllText(changelogPath, contents);
+            }
+            catch (Exception)
+            {
+                // Failed to save changelog
+            }
+        }
+
+        public static List<Dictionary<string, string>> LoadChangelog()
+        {
+            try
+            {
+                string changelogPath = GetChangelogPath();
+                if (File.Exists(changelogPath))
+                {
+                    using (var input = File.OpenText(changelogPath))
+                    {
+                        var deserializer = new DeserializerBuilder()
+                            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                            .Build();
+                        return deserializer.Deserialize<List<Dictionary<string, string>>>(input) ?? new List<Dictionary<string, string>>();
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Failed to load changelog
+            }
+            return new List<Dictionary<string, string>>();
         }
     }
 }

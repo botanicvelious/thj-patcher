@@ -18,9 +18,25 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json.Serialization;
+using System.Windows.Data;
+using System.Globalization;
 
 namespace THJPatcher
 {
+    public class BooleanOrConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            return values.OfType<bool>().Any(b => b);
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public class ChangelogData
     {
         public string Status { get; set; }
@@ -28,15 +44,28 @@ namespace THJPatcher
         public ChangelogInfo Changelog { get; set; }
     }
 
+    public class ChangelogResponse
+    {
+        public int Total { get; set; }
+        public List<ChangelogInfo> Changelogs { get; set; }
+    }
+
     public class ChangelogInfo
     {
+        [JsonPropertyName("raw_content")]
         public string Raw_Content { get; set; }
+        
+        [JsonPropertyName("formatted_content")]
         public string Formatted_Content { get; set; }
-        public string Content { get; set; }
+        
+        [JsonPropertyName("author")]
         public string Author { get; set; }
+        
+        [JsonPropertyName("timestamp")]
         public DateTime Timestamp { get; set; }
+        
+        [JsonPropertyName("message_id")]
         public string Message_Id { get; set; }
-        public string Version { get; set; }
     }
 
     public partial class MainWindow : Window
@@ -75,6 +104,9 @@ namespace THJPatcher
         private string lastMessageId = "";
         private readonly string changelogEndpoint = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
         private readonly string patcherToken;
+        private bool hasNewChangelogs = false;
+
+        private bool autoScroll = true;
 
         public MainWindow()
         {
@@ -85,11 +117,91 @@ namespace THJPatcher
             chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
 
-            // Initialize changelogs
-            InitializeChangelogs();
+           
+            try
+            {
+                string envPath = null;
+                string projectRoot = AppDomain.CurrentDomain.BaseDirectory;
+                
             
-            // Get the patcher token from environment variable (set by GitHub Actions)
-            patcherToken = Environment.GetEnvironmentVariable("PATCHER_TOKEN") ?? "";
+                for (int i = 0; i < 6; i++)
+                {
+                    projectRoot = Path.GetDirectoryName(projectRoot);
+                }
+
+                string[] possiblePaths = {
+                    Path.Combine(projectRoot, ".env"),
+                    Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".env"),
+                    Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "..", ".env"))
+                };
+
+              
+                foreach (var path in possiblePaths)
+                {
+
+                }
+
+                foreach (var path in possiblePaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        envPath = path;
+
+                        
+                
+                        string[] lines = File.ReadAllLines(path);
+
+                        
+                        foreach (string line in lines)
+                        {
+                            if (!string.IsNullOrWhiteSpace(line) && !line.StartsWith("#"))
+                            {
+                                var parts = line.Split('=', 2);
+                                if (parts.Length == 2)
+                                {
+                                    string key = parts[0].Trim();
+                                    string value = parts[1].Trim();
+                                    
+                        
+                                    Environment.SetEnvironmentVariable(key, value, EnvironmentVariableTarget.Process);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                if (envPath == null)
+                {
+
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+
+
+            patcherToken = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
+            if (string.IsNullOrEmpty(patcherToken))
+            {
+
+            }
+            else
+            {
+
+                
+                var doubleCheck = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
+                if (string.IsNullOrEmpty(doubleCheck))
+                {
+
+                }
+                else
+                {
+
+                }
+            }
 
             // Initialize server configuration
             serverName = "The Heroes Journey";
@@ -100,7 +212,6 @@ namespace THJPatcher
                 return;
             }
 
-            
             fileName = "heroesjourneyeq";
 
             filelistUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
@@ -221,7 +332,7 @@ namespace THJPatcher
                 bool success = await Task.Run(() => Utilities.PEModifier.Apply4GBPatch(eqExePath));
                 if (success)
                 {
-                    // Double-check if the patch was actually applied
+                    
                     bool verifyPatch = await Task.Run(() => Utilities.PEModifier.Is4GBPatchApplied(eqExePath));
                     if (verifyPatch)
                     {
@@ -429,8 +540,37 @@ namespace THJPatcher
             isLoading = true;
             cts = new CancellationTokenSource();
 
-            // Check for changelog updates
+            // Initialize logging first
+            StatusLibrary.SubscribeProgress(new StatusLibrary.ProgressHandler(StatusLibrary_ProgressChanged));
+            StatusLibrary.SubscribeLogAdd(new StatusLibrary.LogAddHandler((string message) =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    txtLog.AppendText(message + Environment.NewLine);
+                    txtLog.ScrollToEnd();
+                    txtLog.CaretIndex = txtLog.Text.Length;
+                });
+            }));
+            StatusLibrary.SubscribePatchState(new StatusLibrary.PatchStateHandler((bool isPatchGoing) =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Content = isPatchGoing ? "CANCEL" : "PATCH";
+                });
+            }));
+
+            // Check and initialize changelog first
+            StatusLibrary.Log("Checking for changes...");
             await CheckChangelogAsync();
+            InitializeChangelogs();
+
+            // Load configuration
+            IniLibrary.Load();
+            isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
+            isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
+            chkAutoPlay.IsChecked = isAutoPlay;
+            chkAutoPatch.IsChecked = isAutoPatch;
+            version = IniLibrary.instance.Version;
 
             // Create DXVK configuration for Linux/Proton compatibility
             try
@@ -450,34 +590,7 @@ namespace THJPatcher
                 StatusLibrary.Log($"[DEBUG] Failed to create DXVK configuration: {ex.Message}");
             }
 
-            IniLibrary.Load();
-            isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
-            isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
-            chkAutoPlay.IsChecked = isAutoPlay;
-            chkAutoPatch.IsChecked = isAutoPatch;
-
-            StatusLibrary.SubscribeProgress(new StatusLibrary.ProgressHandler(StatusLibrary_ProgressChanged));
-
-            StatusLibrary.SubscribeLogAdd(new StatusLibrary.LogAddHandler((string message) =>
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    txtLog.AppendText(message + Environment.NewLine);
-                    txtLog.ScrollToEnd();
-                    txtLog.CaretIndex = txtLog.Text.Length;
-                });
-            }));
-
-            StatusLibrary.SubscribePatchState(new StatusLibrary.PatchStateHandler((bool isPatchGoing) =>
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    btnPatch.Content = isPatchGoing ? "CANCEL" : "PATCH";
-                });
-            }));
-
-            version = IniLibrary.instance.Version;
-
+            // Check for updates
             await CheckForUpdates();
             
             if (isAutoPatch)
@@ -494,6 +607,21 @@ namespace THJPatcher
         {
             StatusLibrary.Log("Checking for updates...");
             await Task.Delay(2000);
+
+            // Show latest changelog window if we have changelogs AND they're new
+            if (changelogs.Any() && hasNewChangelogs)
+            {
+                StatusLibrary.Log("[DEBUG] Showing latest changelog window");
+                var latestChangelog = changelogs.OrderByDescending(x => x.Timestamp).First();
+                var latestChangelogWindow = new LatestChangelogWindow(latestChangelog);
+                latestChangelogWindow.ShowDialog();
+
+                // Only proceed if the user acknowledged the changelog
+                if (!latestChangelogWindow.IsAcknowledged)
+                {
+                    return;
+                }
+            }
 
             // Skip self-update check in debug mode
             if (!isDebugMode)
@@ -544,7 +672,6 @@ namespace THJPatcher
             // Now check if game files need updating by comparing filelist version
             string suffix = "rof";
             string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
-            StatusLibrary.Log($"[DEBUG] Attempting to download filelist from: {webUrl}");
             string filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
             if (filelistResponse != "")
             {
@@ -555,7 +682,6 @@ namespace THJPatcher
             // Read and check filelist version
             FileList filelist;
             string filelistPath = $"{Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath)}\\filelist.yml";
-            StatusLibrary.Log($"[DEBUG] Reading local filelist from: {filelistPath}");
             
             using (var input = File.OpenText(filelistPath))
             {
@@ -565,14 +691,12 @@ namespace THJPatcher
                 filelist = deserializerBuilder.Deserialize<FileList>(input);
             }
 
-            StatusLibrary.Log($"[DEBUG] Comparing versions - Filelist version: {filelist.version}, Last patched version: {IniLibrary.instance.LastPatchedVersion}");
             if (filelist.version != IniLibrary.instance.LastPatchedVersion)
             {
                 if (!isPendingPatch)
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        StatusLibrary.Log("[DEBUG] Version mismatch detected - update needed");
                         StatusLibrary.Log("Update available! Click PATCH to begin.");
                         btnPatch.Visibility = Visibility.Visible;
                         btnPlay.Visibility = Visibility.Collapsed;
@@ -582,11 +706,12 @@ namespace THJPatcher
             }
             else
             {
-                StatusLibrary.Log("[DEBUG] Versions match - no update needed");
+                StatusLibrary.Log("Up to date - no update needed");
             }
 
             // If we get here, no updates are needed
             await Task.Delay(1000); 
+
             Dispatcher.Invoke(() =>
             {
                 StatusLibrary.Log("Ready to play!");
@@ -916,21 +1041,57 @@ namespace THJPatcher
             });
         }
 
+        private void LogScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            // User scroll
+            if (e.ExtentHeightChange == 0)
+            {
+                // User scroll detected
+                if (logScrollViewer.VerticalOffset == logScrollViewer.ScrollableHeight)
+                {
+                    // Scrolled to bottom - enable auto-scroll
+                    autoScroll = true;
+                }
+                else
+                {
+                    // Scrolled up - disable auto-scroll
+                    autoScroll = false;
+                }
+            }
+
+            // Content changed
+            if (autoScroll && e.ExtentHeightChange != 0)
+            {
+                logScrollViewer.ScrollToVerticalOffset(logScrollViewer.ExtentHeight);
+            }
+        }
+
         private void StatusLibrary_LogAdded(string message)
         {
             Dispatcher.Invoke(() =>
             {
+                // Append the new message
                 txtLog.AppendText(message + Environment.NewLine);
-                txtLog.ScrollToEnd();
-                
-                // Get the ScrollViewer that contains the TextBox
-                if (txtLog.Parent is ScrollViewer scrollViewer)
+
+                // Only auto-scroll if enabled
+                if (autoScroll)
                 {
-                    scrollViewer.ScrollToEnd();
-                }
-                else if (LogicalTreeHelper.GetParent(txtLog.Parent) is ScrollViewer parentScrollViewer)
-                {
-                    parentScrollViewer.ScrollToEnd();
+                    // Force scroll to end in multiple ways to ensure it works
+                    txtLog.ScrollToEnd();
+                    txtLog.CaretIndex = txtLog.Text.Length;
+
+                    // Ensure the parent ScrollViewer also scrolls
+                    if (txtLog.Parent is ScrollViewer scrollViewer)
+                    {
+                        scrollViewer.ScrollToVerticalOffset(scrollViewer.ExtentHeight);
+                    }
+                    else if (LogicalTreeHelper.GetParent(txtLog.Parent) is ScrollViewer parentScrollViewer)
+                    {
+                        parentScrollViewer.ScrollToVerticalOffset(parentScrollViewer.ExtentHeight);
+                    }
+
+                    // Update layout to ensure scrolling takes effect
+                    txtLog.UpdateLayout();
                 }
             });
         }
@@ -965,100 +1126,252 @@ namespace THJPatcher
 
         private void InitializeChangelogs()
         {
-            // Add changelogs in reverse chronological order (internal history)
-            changelogs.Add(new ChangelogInfo
+            try
             {
-                Version = "1.0.6.106",
-                Timestamp = DateTime.Parse("2024-03-11"),
-                Author = "Catapultam",
-                Content = @"- Re-enabled Zone State Preservation
-- Fixed Bazaar Parcel Purchase Discount
-- Fixed incorrect mobs spawning in restored respawning instances
-- Fixed The Polymorphist not accepting Echo of Memory for deity changes
-- Praeserti no longer flee
-- Fixed Bladed Song
-- Removed Parcel fee for Bazaar purchases in EC and Bazaar",
-                Message_Id = "1348875672461901824" // Add message_id to track against API updates
-            });
+                string appPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string changelogPath = Path.Combine(appPath, "changelog.yml");
 
-            // Format all changelogs
-            FormatAllChangelogs();
+                // Load changelogs from yml file if it exists
+                var entries = IniLibrary.LoadChangelog();
+
+
+                changelogs.Clear();
+
+                if (entries.Count > 0)
+                {
+                    foreach (var entry in entries)
+                    {
+                        if (entry.TryGetValue("timestamp", out var timestampStr) && 
+                            entry.TryGetValue("author", out var author) &&
+                            entry.TryGetValue("formatted_content", out var formattedContent) &&
+                            entry.TryGetValue("raw_content", out var rawContent) &&
+                            entry.TryGetValue("message_id", out var messageId))
+                        {
+                            if (DateTime.TryParse(timestampStr, out var timestamp))
+                            {
+                                changelogs.Add(new ChangelogInfo
+                                {
+                                    Timestamp = timestamp,
+                                    Author = author,
+                                    Formatted_Content = formattedContent,
+                                    Raw_Content = rawContent,
+                                    Message_Id = messageId
+                                });
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    StatusLibrary.Log("[DEBUG] No entries found in changelog file, using default entry");
+                    // Fallback to default changelog if no yml file exists
+                    changelogs.Add(new ChangelogInfo
+                    {
+                        Timestamp = DateTime.Now,
+                        Author = "System",
+                        Formatted_Content = "Welcome to The Heroes' Journey!\n\nNo changelog entries have been loaded yet. Please check back later.",
+                        Raw_Content = "Welcome to The Heroes' Journey!\n\nNo changelog entries have been loaded yet. Please check back later.",
+                        Message_Id = "default"
+                    });
+                }
+
+                // Format all changelogs
+                FormatAllChangelogs();
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[ERROR] Failed to initialize changelogs: {ex.Message}");
+            }
         }
 
         private void FormatAllChangelogs()
         {
-            changelogContent = "";
-            foreach (var log in changelogs.OrderByDescending(x => x.Timestamp))
+            try
             {
-                changelogContent += FormatChangelog(log) + "\n---\n\n";
+                changelogContent = "";
+                foreach (var log in changelogs.OrderByDescending(x => x.Timestamp))
+                {
+                    changelogContent += FormatChangelog(log) + "\n---\n\n";
+                }
+
+                if (string.IsNullOrWhiteSpace(changelogContent))
+                {
+                    changelogContent = "No changelog entries available.";
+                }
             }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[ERROR] Failed to format changelogs: {ex.Message}");
+                changelogContent = "Error loading changelog entries.";
+            }
+        }
+
+        private string FormatChangelog(ChangelogInfo changelog)
+        {
+            // Just use the formatted content directly since it already contains the headers
+            return changelog.Formatted_Content.Trim();
+        }
+
+        private void ChangelogButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new ChangelogWindow(changelogContent);
+            dialog.ShowDialog();
         }
 
         private async Task CheckChangelogAsync()
         {
             try
             {
-                StatusLibrary.Log("[DEBUG] Checking for changelog updates...");
+                string appPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string changelogPath = Path.Combine(appPath, "changelog.yml");
+
+
+                // Get token from environment variable
+                string token = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
+                if (string.IsNullOrEmpty(token))
+                {
+                    return;
+                }
+
+
+                if (File.Exists(changelogPath))
+                {
+                    
+                    // Get the latest message_id from yml
+                    string currentMessageId = IniLibrary.GetLatestMessageId();
+
+                    // Check for new changelog
+                    using (var client = new HttpClient())
+                    {
+                        client.DefaultRequestHeaders.Add("x-patcher-token", token);
+                        try
+                        {
+                            var url = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
+
+                            var latestResponse = await client.GetStringAsync(url);
+                            if (!string.IsNullOrEmpty(latestResponse))
+                            {
+                                var options = new JsonSerializerOptions
+                                {
+                                    PropertyNameCaseInsensitive = true,
+                                    AllowTrailingCommas = true
+                                };
+
+                                var response = JsonSerializer.Deserialize<ChangelogData>(latestResponse, options);
+                                if (response?.Found == true && response.Changelog != null)
+                                {
+
+                                    if (response.Changelog.Message_Id != currentMessageId)
+                                    {
+                                        
+                                        // Load existing entries
+                                        var entries = IniLibrary.LoadChangelog();
+                                        
+                                        // Add new entry at the beginning
+                                        entries.Insert(0, new Dictionary<string, string>
+                                        {
+                                            ["raw_content"] = response.Changelog.Raw_Content,
+                                            ["formatted_content"] = response.Changelog.Formatted_Content,
+                                            ["author"] = response.Changelog.Author,
+                                            ["timestamp"] = response.Changelog.Timestamp.ToString("O"),
+                                            ["message_id"] = response.Changelog.Message_Id
+                                        });
+
+                                        // Save updated changelog
+                                        IniLibrary.SaveChangelog(entries);
+                                        
+                                        // Update changelogs list and set flag
+                                        changelogs.Insert(0, response.Changelog);
+                                        hasNewChangelogs = true;
+                                    }
+                                    else
+                                    {
+                                        StatusLibrary.Log("No new changes.");
+                                        hasNewChangelogs = false;
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            
+                        }
+                    }
+                    return;
+                }
+
+                // If we get here, no yml exists - fetch all changelogs
                 using (var client = new HttpClient())
                 {
-                    client.DefaultRequestHeaders.Add("x-patcher-token", patcherToken);
-                    StatusLibrary.Log($"[DEBUG] Using patcher token: {(string.IsNullOrEmpty(patcherToken) ? "Not set" : "Set")}");
-                    
-                    var response = await client.GetStringAsync(changelogEndpoint);
-                    var changelogData = JsonSerializer.Deserialize<ChangelogData>(response);
-                    StatusLibrary.Log($"[DEBUG] Changelog API response - Status: {changelogData?.Status}, Found: {changelogData?.Found}");
-
-                    if (changelogData?.Found == true && changelogData.Changelog != null)
+                    client.DefaultRequestHeaders.Add("x-patcher-token", token);
+                    try
                     {
-                        // Check if this changelog is new (not in our list)
-                        if (!changelogs.Any(c => c.Message_Id == changelogData.Changelog.Message_Id))
+                        var url = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/changelog?all=true";
+                        
+
+                        var allResponse = await client.GetStringAsync(url);
+                        
+                        
+                        if (!string.IsNullOrEmpty(allResponse))
                         {
-                            StatusLibrary.Log("[DEBUG] New changelog found, updating display...");
-                            // Convert API changelog to our format
-                            var newChangelog = new ChangelogInfo
+                            try
                             {
-                                Content = changelogData.Changelog.Formatted_Content,
-                                Author = changelogData.Changelog.Author,
-                                Timestamp = changelogData.Changelog.Timestamp,
-                                Message_Id = changelogData.Changelog.Message_Id,
-                                Version = version // Use current version or parse from content if needed
-                            };
+                                var options = new JsonSerializerOptions
+                                {
+                                    PropertyNameCaseInsensitive = true,
+                                    AllowTrailingCommas = true
+                                };
+                                
+                                var response = JsonSerializer.Deserialize<ChangelogResponse>(allResponse, options);
 
-                            // Add to our list and update display
-                            changelogs.Insert(0, newChangelog);
-                            FormatAllChangelogs();
+                                if (response?.Changelogs != null && response.Changelogs.Count > 0)
+                                {
 
-                            // Show popup for new changes
-                            CustomMessageBox.Show($"New changes available:\n\n{FormatChangelog(newChangelog)}");
-                            StatusLibrary.Log("[DEBUG] Changelog popup displayed");
+                                    // Convert changelogs to the format expected by IniLibrary.SaveChangelog
+                                    var entries = response.Changelogs.Select(c => new Dictionary<string, string>
+                                    {
+                                        ["raw_content"] = c.Raw_Content,
+                                        ["formatted_content"] = c.Formatted_Content,
+                                        ["author"] = c.Author,
+                                        ["timestamp"] = c.Timestamp.ToString("O"),
+                                        ["message_id"] = c.Message_Id
+                                    }).ToList();
+
+                                    // Save the API response to changelog.yml
+                                    IniLibrary.SaveChangelog(entries);
+
+                                    // Update the changelogs list immediately and set flag
+                                    changelogs.Clear();
+                                    changelogs.AddRange(response.Changelogs);
+                                    hasNewChangelogs = true;
+                                }
+                                else
+                                {
+                                }
+                            }
+                            catch (JsonException jex)
+                            {
+
+                            }
                         }
                         else
                         {
-                            StatusLibrary.Log("[DEBUG] No new changelog updates found");
                         }
+                    }
+                    catch (HttpRequestException hex)
+                    {
+                        StatusLibrary.Log($"[ERROR] HTTP request failed: {hex.Message}");
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[ERROR] Unable to retrieve changelogs from API: {ex.Message}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                StatusLibrary.Log($"[DEBUG] Error checking changelog: {ex.Message}");
-                Debug.WriteLine($"Error checking changelog: {ex.Message}");
+                StatusLibrary.Log($"[ERROR] Error in changelog check: {ex.Message}");
             }
-        }
-
-        private string FormatChangelog(ChangelogInfo changelog)
-        {
-            return $"# {changelog.Timestamp:MMMM dd, yyyy}" + 
-                   (string.IsNullOrEmpty(changelog.Version) ? "" : $" (v{changelog.Version})") + "\n" +
-                   $"## {changelog.Author}\n\n" +
-                   $"{changelog.Content.Trim()}\n";
-        }
-
-        private void ChangelogButton_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new CustomMessageBox(changelogContent);
-            dialog.Title = "Changelog History";
-            dialog.ShowDialog();
         }
     }
 } 
