@@ -141,7 +141,7 @@
                     Orientation="Vertical" 
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Margin="85,-230,0,0">
+                    Margin="85,-270,0,0">
             
             <!-- Links Section -->
             <StackPanel Margin="0,0,0,0">
@@ -152,6 +152,21 @@
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
                         Tag="https://heroesjourneyemu.com/">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{StaticResource BooleanOrConverter}">
+                            <Binding ElementName="btnPlay" Path="IsVisible"/>
+                            <Binding ElementName="btnPatch" Path="IsVisible"/>
+                        </MultiBinding>
+                    </Button.IsEnabled>
+                </Button>
+                
+                <Button Content="Create an account"
+                        Width="160"
+                        Height="40"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource GoldButton}"
+                        Click="LinkButton_Click"
+                        Tag="https://wiki.heroesjourneyemu.com/en/Change-log-history">
                     <Button.IsEnabled>
                         <MultiBinding Converter="{StaticResource BooleanOrConverter}">
                             <Binding ElementName="btnPlay" Path="IsVisible"/>
