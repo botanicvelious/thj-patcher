@@ -160,7 +160,7 @@
                     </Button.IsEnabled>
                 </Button>
                 
-                <Button Content="Create an account"
+                <Button Content="Create an Account"
                         Width="160"
                         Height="40"
                         Margin="0,0,0,10"
