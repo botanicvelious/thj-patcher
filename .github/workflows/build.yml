@@ -14,7 +14,7 @@ on:
     branches: [ "master" ]
 
 env:
-  VERSION: 1.0.6
+  VERSION: 1.1.0
   BUILD_CONFIGURATION: Release
   SERVER_NAME: "The Heroes Journey"
   FILE_NAME: "heroesjourneyeq-test"

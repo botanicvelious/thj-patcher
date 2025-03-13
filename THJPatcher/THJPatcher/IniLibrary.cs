@@ -114,7 +114,7 @@ namespace THJPatcher
             if (instance.AutoPlay == null) instance.AutoPlay = "false";
             if (instance.PatcherUrl == null) instance.PatcherUrl = "";
             if (instance.FileName == null) instance.FileName = "";
-            if (instance.Version == null) instance.Version = "1.0.0";
+            if (instance.Version == null) instance.Version = "1.1.0";
             if (instance.LastPatchedVersion == null) instance.LastPatchedVersion = "";
 
             Debug.WriteLine($"[DEBUG] Loaded LastPatchedVersion: {instance.LastPatchedVersion}");
@@ -137,7 +137,7 @@ namespace THJPatcher
             instance.AutoPatch = "false";
             instance.PatcherUrl = "";
             instance.FileName = "";
-            instance.Version = "1.0.0";
+            instance.Version = "1.1.0";
             instance.LastPatchedVersion = "";
         }
 

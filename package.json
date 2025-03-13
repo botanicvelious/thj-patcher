@@ -1,6 +1,6 @@
 {
-  "name": "thjpatcher",
-  "version": "1.0.0",
+  "name": "thj-patcher",
+  "version": "1.1.0",
   "description": "The Heroes Journey Patcher",
   "scripts": {
     "start": "echo No manifest generation needed"
