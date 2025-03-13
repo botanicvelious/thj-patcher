@@ -219,7 +219,7 @@ namespace THJPatcher
         {
             try
             {
-                string path = Path.GetDirectoryName(Application.ExecutablePath);
+                string path = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = path,
@@ -244,7 +244,7 @@ namespace THJPatcher
             btn4GBPatch.IsEnabled = false;
             try
             {
-                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string eqPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
                 string eqExePath = Path.Combine(eqPath, "eqgame.exe");
 
                 if (!File.Exists(eqExePath))
@@ -777,7 +777,7 @@ namespace THJPatcher
                 try
                 {
                     var data = await Task.Run(async () => await UtilityLibrary.Download(cts, url));
-                    string localExePath = System.Windows.Forms.Application.ExecutablePath;
+                    string localExePath = Process.GetCurrentProcess().MainModule.FileName;
                     string localExeName = Path.GetFileName(localExePath);
                     
                     if (File.Exists(localExePath + ".old"))
@@ -1041,7 +1041,7 @@ namespace THJPatcher
         {
             try
             {
-                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string eqPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
                 string eqExePath = Path.Combine(eqPath, "eqgame.exe");
                 
                 if (File.Exists(eqExePath))
@@ -1069,7 +1069,7 @@ namespace THJPatcher
         {
             try
             {
-                string appPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
                 string changelogPath = Path.Combine(appPath, "changelog.yml");
 
                 // Load changelogs from yml file if it exists
@@ -1163,7 +1163,7 @@ namespace THJPatcher
         {
             try
             {
-                string appPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
                 string changelogPath = Path.Combine(appPath, "changelog.yml");
 
                 // Get token from Constants
