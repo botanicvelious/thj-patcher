@@ -215,6 +215,24 @@ namespace THJPatcher
             InitializeOptimizationsPanel();
         }
 
+        private void OpenFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string path = Path.GetDirectoryName(Application.ExecutablePath);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true,
+                    Verb = "open"
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to open folder: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void CloseOptimizations_Click(object sender, RoutedEventArgs e)
         {
             optimizationsPanel.Visibility = Visibility.Collapsed;

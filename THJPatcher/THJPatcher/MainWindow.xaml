@@ -252,7 +252,7 @@
                 </Button>
 
                 <Button x:Name="btnOptimizations"
-                        Content="Optimizations"
+                        Content="Extras"
                         Width="160"
                         Height="40"
                         Margin="0,0,0,10"
@@ -378,6 +378,15 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                 Margin="0,40,0,0">
                         <WrapPanel Orientation="Horizontal" Margin="8">
+                            <Button x:Name="btnOpenFolder"
+                                    Content="Open THJ Folder"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="OpenFolder_Click"
+                                    ToolTip="Opens the folder where THJ is installed"/>
+
                             <Button x:Name="btn4GBPatch"
                                     Content="4GB Patch"
                                     Width="180"
