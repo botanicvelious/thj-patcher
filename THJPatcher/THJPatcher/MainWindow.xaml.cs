@@ -110,7 +110,8 @@ namespace THJPatcher
                     "Bristlebane is rewriting the loot tables… good luck!...",
                     "Entering Vex Thal… see you next year...",
                     "Heading into Plane of Time… don't worry, you will need plenty of it....",
-                    "Aporia tried to nerf Bards… but they twisted out of it."
+                    "Aporia tried to nerf Bards… but they twisted out of it.",
+                    "Xegony’s winds are howling… or is that just the lag?"
                 }
             };
         }
