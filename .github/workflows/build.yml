@@ -84,7 +84,7 @@ jobs:
     - name: Build Application
       run: |
         cd "THJPatcher"
-        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}"
+        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -p:Version="${{ env.VERSION }}.${{ github.run_number }}" -p:AssemblyVersion="${{ env.VERSION }}.${{ github.run_number }}" -p:FileVersion="${{ env.VERSION }}.${{ github.run_number }}"
 
     - name: Upload staging artifacts
       uses: actions/upload-artifact@v4

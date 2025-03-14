@@ -634,11 +634,16 @@ namespace THJPatcher
                 {
                     StatusLibrary.Log("Checking patcher version...");
                     var data = await UtilityLibrary.Download(cts, url);
-                    string response = System.Text.Encoding.Default.GetString(data).ToUpper();
+                    string response = System.Text.Encoding.Default.GetString(data).Trim().ToUpperInvariant();
                     
-                    if (response != "")
+                    if (!string.IsNullOrEmpty(response))
                     {
-                        myHash = UtilityLibrary.GetMD5(System.Windows.Forms.Application.ExecutablePath);
+                        myHash = UtilityLibrary.GetMD5(System.Windows.Forms.Application.ExecutablePath).ToUpperInvariant();
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Remote hash: {response}");
+                            StatusLibrary.Log($"[DEBUG] Local hash:  {myHash}");
+                        }
                         if (response != myHash)
                         {
                             isNeedingSelfUpdate = true;
