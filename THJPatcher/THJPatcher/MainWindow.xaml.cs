@@ -99,6 +99,7 @@ namespace THJPatcher
                     "Adding more duct tape to the database—should be fine...",
                     "Server hamster demands a raise, Aporia Refused...",
                     "'Balancing' pet builds...",
+                    "Im winning at Fashion Quest...",
                     "Welcome to The Heroes Journey—where your class build is only limited by your imagination.",
                     "Three-class builds allow for endless customization—choose wisely, adventure boldly!",
                     "The Tribunal have ruled: Your Rogue/Warrior/Monk build is technically a crime.",
@@ -125,7 +126,7 @@ namespace THJPatcher
         private bool isLoading;
         private bool isAutoPatch = false;
         private bool isAutoPlay = false;
-        private bool isDebugMode = true;
+        private bool isDebugMode = false;
         private CancellationTokenSource cts;
         private Process process;
         private string myHash = "";
@@ -184,9 +185,9 @@ namespace THJPatcher
                 return;
             }
 
-            fileName = "heroesjourneyeq";
+            fileName = "heroesjourneyemu";
 
-            filelistUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
+            filelistUrl = "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/";
             if (string.IsNullOrEmpty(filelistUrl))
             {
                 MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the file list url is not provided or screenshot this message.", serverName);
@@ -195,7 +196,7 @@ namespace THJPatcher
             }
             if (!filelistUrl.EndsWith("/")) filelistUrl += "/";
 
-            patcherUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
+            patcherUrl = "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/";
             if (string.IsNullOrEmpty(patcherUrl))
             {
                 MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the patcher url is not provided or screenshot this message.", serverName);
@@ -578,7 +579,7 @@ namespace THJPatcher
             {
                 string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
                 string dxvkPath = Path.Combine(eqPath, "dxvk.conf");
-                string dxvkContent = "[heroesjourneyeq-test.exe]\nd3d9.shaderModel = 1";
+                string dxvkContent = "[heroesjourneyemu.exe]\nd3d9.shaderModel = 1";
                 
                 if (!File.Exists(dxvkPath))
                 {
@@ -630,14 +631,13 @@ namespace THJPatcher
                 string url = $"{patcherUrl}{fileName}-hash.txt";
                 try
                 {
-                    StatusLibrary.Log("[DEBUG] Checking patcher version...");
+                    StatusLibrary.Log("Checking patcher version...");
                     var data = await UtilityLibrary.Download(cts, url);
                     string response = System.Text.Encoding.Default.GetString(data).ToUpper();
                     
                     if (response != "")
                     {
                         myHash = UtilityLibrary.GetMD5(System.Windows.Forms.Application.ExecutablePath);
-                        StatusLibrary.Log($"[DEBUG] Comparing patcher hashes - Remote: {response}, Local: {myHash}");
                         if (response != myHash)
                         {
                             isNeedingSelfUpdate = true;
@@ -645,7 +645,7 @@ namespace THJPatcher
                             {
                                 Dispatcher.Invoke(() =>
                                 {
-                                    StatusLibrary.Log("[DEBUG] Patcher update needed");
+                                    StatusLibrary.Log("Patcher update needed");
                                     StatusLibrary.Log("Update available! Click PATCH to begin.");
                                     btnPatch.Visibility = Visibility.Visible;
                                     btnPlay.Visibility = Visibility.Collapsed;
@@ -655,13 +655,13 @@ namespace THJPatcher
                         }
                         else
                         {
-                            StatusLibrary.Log("[DEBUG] Patcher is up to date");
+                            StatusLibrary.Log("Patcher is up to date");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    StatusLibrary.Log($"[DEBUG] Exception during patcher update check: {ex.Message}");
+                    StatusLibrary.Log($"[Error] Exception during patcher update check: {ex.Message}");
                 }
             }
             else
