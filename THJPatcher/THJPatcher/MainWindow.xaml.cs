@@ -21,6 +21,7 @@ using System.Net.Http;
 using System.Text.Json.Serialization;
 using System.Windows.Data;
 using System.Globalization;
+using System.Reflection;
 
 namespace THJPatcher
 {
@@ -572,7 +573,7 @@ namespace THJPatcher
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
             chkAutoPlay.IsChecked = isAutoPlay;
             chkAutoPatch.IsChecked = isAutoPatch;
-            version = IniLibrary.instance.Version;
+            version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
 
             // Create DXVK configuration for Linux/Proton compatibility
             try

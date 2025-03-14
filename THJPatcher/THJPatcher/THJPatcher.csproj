@@ -31,6 +31,9 @@
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Version>$(VERSION)</Version>
+    <FileVersion>$(VERSION)</FileVersion>
+    <AssemblyVersion>$(VERSION)</AssemblyVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DefineConstants>
