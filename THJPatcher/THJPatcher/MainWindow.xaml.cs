@@ -68,6 +68,11 @@ namespace THJPatcher
         public string Message_Id { get; set; }
     }
 
+    public class LoadingMessages
+    {
+        public List<string> Messages { get; set; }
+    }
+
     public partial class MainWindow : Window
     {
         private readonly SolidColorBrush _redBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 0, 0));
@@ -106,6 +111,9 @@ namespace THJPatcher
         private bool hasNewChangelogs = false;
 
         private bool autoScroll = true;
+
+        private LoadingMessages loadingMessages;
+        private Random random = new Random();
 
         public MainWindow()
         {
@@ -502,6 +510,16 @@ namespace THJPatcher
 
             // Check and initialize changelog first
             StatusLibrary.Log("Checking for changes...");
+            
+            // Load and display random message
+            await LoadLoadingMessages();
+            string randomMessage = GetRandomLoadingMessage();
+            if (!string.IsNullOrEmpty(randomMessage))
+            {
+                await Task.Delay(1000);
+                StatusLibrary.Log(randomMessage);
+            }
+
             await CheckChangelogAsync();
             InitializeChangelogs();
 
@@ -1330,6 +1348,38 @@ namespace THJPatcher
                 StatusLibrary.Log("[ERROR] Failed to check for changelogs");
                 StatusLibrary.Log("Continuing....");
             }
+        }
+
+        private async Task LoadLoadingMessages()
+        {
+            try
+            {
+                string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+                string messagesPath = Path.Combine(appPath, "Resources", "loading_messages.json");
+
+                if (File.Exists(messagesPath))
+                {
+                    string jsonContent = await File.ReadAllTextAsync(messagesPath);
+                    loadingMessages = JsonSerializer.Deserialize<LoadingMessages>(jsonContent);
+                }
+                else
+                {
+                    StatusLibrary.Log("[DEBUG] Loading messages file not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[DEBUG] Failed to load messages: {ex.Message}");
+            }
+        }
+
+        private string GetRandomLoadingMessage()
+        {
+            if (loadingMessages?.Messages != null && loadingMessages.Messages.Count > 0)
+            {
+                return loadingMessages.Messages[random.Next(loadingMessages.Messages.Count)];
+            }
+            return null;
         }
     }
 } 
