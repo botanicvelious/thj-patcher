@@ -71,6 +71,47 @@ namespace THJPatcher
     public class LoadingMessages
     {
         public List<string> Messages { get; set; }
+
+        public static LoadingMessages CreateDefault()
+        {
+            return new LoadingMessages
+            {
+                Messages = new List<string>
+                {
+                    "Decreasing exp by 1.1%, how would you know?...",
+                    "Decreasing enemy health to 0 while keeping yours above 0...",
+                    "Cata is messing with the wires again....",
+                    "Feeding halflings to ogres...",
+                    "Casting lightning bolt...",
+                    "I didn't ask how big the room was… I said I cast Fireball...",
+                    "Increasing Froglok jumping by 3.8%...",
+                    "Banning MQ2 users...",
+                    "Nerfing Monk/Monk/Monk...",
+                    "Reverting the bug fixes by pulling from upstream...",
+                    "Feeding the server hamsters...",
+                    "Bribing the RNG gods...",
+                    "Aporia is watching you.....",
+                    "Gnomes are not snacks, stop asking...",
+                    "Buffing in the Plane of Water… just kidding, no one goes there...",
+                    "Undercutting your trader by 1 copper...",
+                    "Emergency patch: Aporia found an exploit. Cata is 'fixing' it. Drake is taking cover...",
+                    "Balancing triple-class builds...",
+                    "Adding more duct tape to the database—should be fine...",
+                    "Server hamster demands a raise, Aporia Refused...",
+                    "'Balancing' pet builds...",
+                    "Welcome to The Heroes Journey—where your class build is only limited by your imagination.",
+                    "Three-class builds allow for endless customization—choose wisely, adventure boldly!",
+                    "The Tribunal have ruled: Your Rogue/Warrior/Monk build is technically a crime.",
+                    "Plane of Fire..... the BRD/WIZ/SK's new home.....",
+                    "Zebuxoruk is confused by your triple-class build. Not as confused as we are, though...",
+                    "Even the Gods are questioning your choice of PAL/SK/MNK. But hey, it's your journey...",
+                    "Bristlebane is rewriting the loot tables… good luck!...",
+                    "Entering Vex Thal… see you next year...",
+                    "Heading into Plane of Time… don't worry, you will need plenty of it....",
+                    "Aporia tried to nerf Bards… but they twisted out of it."
+                }
+            };
+        }
     }
 
     public partial class MainWindow : Window
@@ -510,14 +551,15 @@ namespace THJPatcher
 
             // Check and initialize changelog first
             StatusLibrary.Log("Checking for changes...");
+            await Task.Delay(1000); // Pause for effect
             
             // Load and display random message
-            await LoadLoadingMessages();
+            loadingMessages = LoadingMessages.CreateDefault();
             string randomMessage = GetRandomLoadingMessage();
             if (!string.IsNullOrEmpty(randomMessage))
             {
-                await Task.Delay(1000);
                 StatusLibrary.Log(randomMessage);
+                await Task.Delay(1000); // Pause after showing message
             }
 
             await CheckChangelogAsync();
@@ -541,12 +583,11 @@ namespace THJPatcher
                 if (!File.Exists(dxvkPath))
                 {
                     File.WriteAllText(dxvkPath, dxvkContent);
-                    StatusLibrary.Log("[DEBUG] Created DXVK configuration for Linux/Proton compatibility");
                 }
             }
             catch (Exception ex)
             {
-                StatusLibrary.Log($"[DEBUG] Failed to create DXVK configuration: {ex.Message}");
+                StatusLibrary.Log($"[Error] Failed to create DXVK configuration: {ex.Message}");
             }
 
             // Check for updates
@@ -1122,7 +1163,7 @@ namespace THJPatcher
                 }
                 else
                 {
-                    StatusLibrary.Log("[DEBUG] No entries found in changelog file, using default entry");
+                    StatusLibrary.Log("[Error] No entries found in changelog file, using default entry");
                     // Fallback to default changelog if no yml file exists
                     changelogs.Add(new ChangelogInfo
                     {
@@ -1354,40 +1395,11 @@ namespace THJPatcher
         {
             try
             {
-                string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
-                string messagesPath = Path.Combine(appPath, "Resources", "loading_messages.json");
-                
-                // Add debug logging
-                StatusLibrary.Log($"[DEBUG] Attempting to load messages from: {messagesPath}");
-                StatusLibrary.Log($"[DEBUG] Application path: {appPath}");
-                StatusLibrary.Log($"[DEBUG] File exists check: {File.Exists(messagesPath)}");
-
-                if (File.Exists(messagesPath))
-                {
-                    string jsonContent = await File.ReadAllTextAsync(messagesPath);
-                    loadingMessages = JsonSerializer.Deserialize<LoadingMessages>(jsonContent);
-                    StatusLibrary.Log($"[DEBUG] Successfully loaded {loadingMessages?.Messages?.Count ?? 0} messages");
-                }
-                else
-                {
-                    StatusLibrary.Log("[DEBUG] Loading messages file not found");
-                    StatusLibrary.Log($"[DEBUG] Current Directory: {Directory.GetCurrentDirectory()}");
-                    
-                    // Try alternate path
-                    string altPath = Path.Combine(Directory.GetCurrentDirectory(), "Resources", "loading_messages.json");
-                    StatusLibrary.Log($"[DEBUG] Trying alternate path: {altPath}");
-                    if (File.Exists(altPath))
-                    {
-                        string jsonContent = await File.ReadAllTextAsync(altPath);
-                        loadingMessages = JsonSerializer.Deserialize<LoadingMessages>(jsonContent);
-                        StatusLibrary.Log($"[DEBUG] Successfully loaded {loadingMessages?.Messages?.Count ?? 0} messages from alternate path");
-                    }
-                }
+                // Instead of loading from file, create messages directly
+                loadingMessages = LoadingMessages.CreateDefault();
             }
             catch (Exception ex)
             {
-                StatusLibrary.Log($"[DEBUG] Failed to load messages: {ex.Message}");
-                StatusLibrary.Log($"[DEBUG] Stack trace: {ex.StackTrace}");
             }
         }
 
