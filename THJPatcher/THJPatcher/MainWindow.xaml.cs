@@ -96,7 +96,7 @@ namespace THJPatcher
                     "Buffing in the Plane of Water… just kidding, no one goes there...",
                     "Undercutting your trader by 1 copper...",
                     "Emergency patch: Aporia found an exploit. Cata is 'fixing' it. Drake is taking cover...",
-                    "Balancing triple-class builds...",
+                    "'Balancing' triple-class builds...",
                     "Adding more duct tape to the database—should be fine...",
                     "Server hamster demands a raise, Aporia Refused...",
                     "'Balancing' pet builds...",
