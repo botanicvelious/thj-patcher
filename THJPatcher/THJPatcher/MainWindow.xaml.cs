@@ -1356,20 +1356,38 @@ namespace THJPatcher
             {
                 string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
                 string messagesPath = Path.Combine(appPath, "Resources", "loading_messages.json");
+                
+                // Add debug logging
+                StatusLibrary.Log($"[DEBUG] Attempting to load messages from: {messagesPath}");
+                StatusLibrary.Log($"[DEBUG] Application path: {appPath}");
+                StatusLibrary.Log($"[DEBUG] File exists check: {File.Exists(messagesPath)}");
 
                 if (File.Exists(messagesPath))
                 {
                     string jsonContent = await File.ReadAllTextAsync(messagesPath);
                     loadingMessages = JsonSerializer.Deserialize<LoadingMessages>(jsonContent);
+                    StatusLibrary.Log($"[DEBUG] Successfully loaded {loadingMessages?.Messages?.Count ?? 0} messages");
                 }
                 else
                 {
                     StatusLibrary.Log("[DEBUG] Loading messages file not found");
+                    StatusLibrary.Log($"[DEBUG] Current Directory: {Directory.GetCurrentDirectory()}");
+                    
+                    // Try alternate path
+                    string altPath = Path.Combine(Directory.GetCurrentDirectory(), "Resources", "loading_messages.json");
+                    StatusLibrary.Log($"[DEBUG] Trying alternate path: {altPath}");
+                    if (File.Exists(altPath))
+                    {
+                        string jsonContent = await File.ReadAllTextAsync(altPath);
+                        loadingMessages = JsonSerializer.Deserialize<LoadingMessages>(jsonContent);
+                        StatusLibrary.Log($"[DEBUG] Successfully loaded {loadingMessages?.Messages?.Count ?? 0} messages from alternate path");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 StatusLibrary.Log($"[DEBUG] Failed to load messages: {ex.Message}");
+                StatusLibrary.Log($"[DEBUG] Stack trace: {ex.StackTrace}");
             }
         }
 
