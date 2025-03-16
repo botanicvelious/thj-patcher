@@ -920,11 +920,59 @@ namespace THJPatcher
                 StatusLibrary.Log($"[Warning] Failed to process delete.txt: {ex.Message}");
             }
 
-            // Calculate total patch size
+            // Calculate total files to check
+            int totalFiles = filelist.downloads.Count;
+            int checkedFiles = 0;
+            List<FileEntry> filesToDownload = new List<FileEntry>();
+
+            // First scan - check all files
+            StatusLibrary.Log("Scanning files...");
+            foreach (var entry in filelist.downloads)
+            {
+                if (isPatchCancelled)
+                {
+                    StatusLibrary.Log("Scanning cancelled.");
+                    return;
+                }
+
+                StatusLibrary.SetProgress((int)((double)checkedFiles / totalFiles * 10000));
+                checkedFiles++;
+
+                var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
+                {
+                    StatusLibrary.Log($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
+                    continue;
+                }
+
+                bool needsDownload = false;
+
+                if (!await Task.Run(() => File.Exists(path)))
+                {
+                    StatusLibrary.Log($"Missing file detected: {entry.name}");
+                    needsDownload = true;
+                }
+                else
+                {
+                    var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                    if (md5.ToUpper() != entry.md5.ToUpper())
+                    {
+                        StatusLibrary.Log($"Modified file detected: {entry.name}");
+                        needsDownload = true;
+                    }
+                }
+
+                if (needsDownload)
+                {
+                    filesToDownload.Add(entry);
+                }
+            }
+
+            // Calculate total patch size for downloads
             double totalBytes = await Task.Run(() =>
             {
                 double total = 0;
-                foreach (var entry in filelist.downloads)
+                foreach (var entry in filesToDownload)
                 {
                     total += entry.size;
                 }
@@ -934,9 +982,20 @@ namespace THJPatcher
             double currentBytes = 1;
             double patchedBytes = 0;
 
+            // If no files need downloading, we're done
+            if (filesToDownload.Count == 0)
+            {
+                StatusLibrary.Log("All files are up to date.");
+                StatusLibrary.SetProgress(10000);
+                return;
+            }
+
+            StatusLibrary.Log($"Found {filesToDownload.Count} files to update.");
+            await Task.Delay(1000); // Pause to show the message
+
             // Download and patch files
             if (!filelist.downloadprefix.EndsWith("/")) filelist.downloadprefix += "/";
-            foreach (var entry in filelist.downloads)
+            foreach (var entry in filesToDownload)
             {
                 if (isPatchCancelled)
                 {
@@ -947,28 +1006,7 @@ namespace THJPatcher
                 StatusLibrary.SetProgress((int)(currentBytes / totalBytes * 10000));
 
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
-                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
-                {
-                    StatusLibrary.Log("Path " + path + " might be outside of your Everquest directory. Skipping download to this location.");
-                    continue;
-                }
-
-                // Check if file exists and is already patched
-                if (await Task.Run(() => File.Exists(path)))
-                {
-                    var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
-                    if (md5.ToUpper() == entry.md5.ToUpper())
-                    {
-                        currentBytes += entry.size;
-                        continue;
-                    }
-                }
-                else
-                {
-                    // File doesn't exist but should - log this and continue to download
-                    StatusLibrary.Log($"Missing file detected: {entry.name}");
-                }
-
+                
                 // Create directory if it doesn't exist
                 string directory = Path.GetDirectoryName(path);
                 if (!Directory.Exists(directory))
@@ -978,7 +1016,7 @@ namespace THJPatcher
 
                 // Try primary download URL first
                 string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
-                response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
+                string response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
                 
                 // If primary fails, try backup URL
                 if (response != "")
