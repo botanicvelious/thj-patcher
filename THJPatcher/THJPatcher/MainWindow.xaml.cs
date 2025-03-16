@@ -111,7 +111,7 @@ namespace THJPatcher
                     "Entering Vex Thal… see you next year...",
                     "Heading into Plane of Time… don't worry, you will need plenty of it....",
                     "Aporia tried to nerf Bards… but they twisted out of it.",
-                    "Xegony’s winds are howling… or is that just the lag?"
+                    "Xegony's winds are howling… or is that just the lag?"
                 }
             };
         }
@@ -895,6 +895,53 @@ namespace THJPatcher
                 filelist = await Task.Run(() => deserializerBuilder.Deserialize<FileList>(input));
             }
 
+            // Handle delete.txt if it exists
+            string deleteUrl = $"{filelist.downloadprefix}delete.txt";
+            try
+            {
+                var deleteData = await UtilityLibrary.Download(cts, deleteUrl);
+                if (deleteData != null && deleteData.Length > 0)
+                {
+                    StatusLibrary.Log($"delete.txt ({generateSize(deleteData.Length)})");
+                    string deleteContent = System.Text.Encoding.UTF8.GetString(deleteData);
+                    var filesToDelete = deleteContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    
+                    if (filelist.deletes == null)
+                        filelist.deletes = new List<FileEntry>();
+                        
+                    foreach (var file in filesToDelete)
+                    {
+                        filelist.deletes.Add(new FileEntry { name = file.Trim() });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[Warning] Failed to process delete.txt: {ex.Message}");
+            }
+
+            // Get the client version suffix
+            string suffix = "rof"; // Since we're only supporting RoF/RoF2
+
+            // Download the filelist
+            string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
+            string response = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+            if (response != "")
+            {
+                StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {response}");
+                return;
+            }
+
+            // Parse the filelist
+            FileList filelist;
+            using (var input = await Task.Run(() => File.OpenText($"{Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath)}\\filelist.yml")))
+            {
+                var deserializerBuilder = new DeserializerBuilder()
+                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                    .Build();
+                filelist = await Task.Run(() => deserializerBuilder.Deserialize<FileList>(input));
+            }
+
             // Calculate total patch size
             double totalBytes = await Task.Run(() =>
             {
@@ -939,21 +986,31 @@ namespace THJPatcher
                     }
                 }
 
-                string url = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
-                string backupUrl = filelist.downloadprefix + entry.name.Replace("\\", "/");
-
+                // Try primary download URL first
+                string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
                 response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
+                
+                // If primary fails, try backup URL
                 if (response != "")
                 {
+                    string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
                     response = await UtilityLibrary.DownloadFile(cts, backupUrl, entry.name);
-                    if (response == "404")
+                    if (response != "")
                     {
-                        StatusLibrary.Log($"Failed to download {entry.name} ({generateSize(entry.size)}) from {url} and {filelist.downloadprefix}, 404 error (website may be down?)");
-                        return;
+                        StatusLibrary.Log($"Failed to download {entry.name} ({generateSize(entry.size)}): {response}");
+                        continue;  // Skip this file but continue with others
                     }
                 }
-                StatusLibrary.Log($"{entry.name} ({generateSize(entry.size)})");
 
+                // Verify the downloaded file's MD5
+                var downloadedMd5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                if (downloadedMd5.ToUpper() != entry.md5.ToUpper())
+                {
+                    StatusLibrary.Log($"[Warning] MD5 mismatch for {entry.name}. Expected: {entry.md5.ToUpper()}, Got: {downloadedMd5.ToUpper()}");
+                    continue;
+                }
+
+                StatusLibrary.Log($"{entry.name} ({generateSize(entry.size)})");
                 currentBytes += entry.size;
                 patchedBytes += entry.size;
             }
@@ -961,6 +1018,7 @@ namespace THJPatcher
             // Handle file deletions
             if (filelist.deletes != null && filelist.deletes.Count > 0)
             {
+                StatusLibrary.Log($"Processing {filelist.deletes.Count} file deletion(s)...");
                 foreach (var entry in filelist.deletes)
                 {
                     if (isPatchCancelled)
@@ -972,14 +1030,21 @@ namespace THJPatcher
                     var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
                     if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
                     {
-                        StatusLibrary.Log("Path " + entry.name + " might be outside your Everquest directory. Skipping deletion of this file.");
+                        StatusLibrary.Log($"[Warning] Path {entry.name} might be outside your EverQuest directory. Skipping deletion.");
                         continue;
                     }
 
                     if (await Task.Run(() => File.Exists(path)))
                     {
-                        StatusLibrary.Log("Deleting " + entry.name + "...");
-                        await Task.Run(() => File.Delete(path));
+                        try
+                        {
+                            await Task.Run(() => File.Delete(path));
+                            StatusLibrary.Log($"Deleted {entry.name}");
+                        }
+                        catch (Exception ex)
+                        {
+                            StatusLibrary.Log($"[Warning] Failed to delete {entry.name}: {ex.Message}");
+                        }
                     }
                 }
             }
@@ -1419,4 +1484,5 @@ namespace THJPatcher
             return null;
         }
     }
+} 
 } 
