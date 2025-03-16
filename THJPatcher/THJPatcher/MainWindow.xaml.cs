@@ -1055,15 +1055,15 @@ namespace THJPatcher
                     Directory.CreateDirectory(directory);
                 }
 
-                // Try primary download URL first
-                string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
-                string response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
+                // Try backup URL first since we know files exist there
+                string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
+                string response = await UtilityLibrary.DownloadFile(cts, backupUrl, entry.name);
                 
-                // If primary fails, try backup URL
+                // If backup fails, try primary URL
                 if (response != "")
                 {
-                    string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
-                    response = await UtilityLibrary.DownloadFile(cts, backupUrl, entry.name);
+                    string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
+                    response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
                     if (response != "")
                     {
                         StatusLibrary.Log($"Failed to download {entry.name} ({generateSize(entry.size)}): {response}");
