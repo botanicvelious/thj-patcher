@@ -878,10 +878,10 @@ namespace THJPatcher
 
             // Download the filelist
             string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
-            string response = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
-            if (response != "")
+            string filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+            if (filelistResponse != "")
             {
-                StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {response}");
+                StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {filelistResponse}");
                 return;
             }
 
@@ -1499,14 +1499,8 @@ namespace THJPatcher
 
         private async Task LoadLoadingMessages()
         {
-            try
-            {
-                // Instead of loading from file, create messages directly
-                loadingMessages = LoadingMessages.CreateDefault();
-            }
-            catch (Exception ex)
-            {
-            }
+            // Create messages directly
+            loadingMessages = LoadingMessages.CreateDefault();
         }
 
         private string GetRandomLoadingMessage()
