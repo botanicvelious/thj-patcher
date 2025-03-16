@@ -20,7 +20,7 @@ env:
   FILE_NAME: "heroesjourneyemu"
   FILELIST_URL: "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/"
   PATCHER_URL: "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/"
-  STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
+  STORAGE_URL: "https://raw.githubusercontent.com/The-Heroes-Journey-EQEMU/eqemupatcher/master/rof/"
   PATCHER_TOKEN: ${{ secrets.PATCHER_TOKEN }}
 
 permissions:
