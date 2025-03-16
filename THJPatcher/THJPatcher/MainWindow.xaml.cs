@@ -716,12 +716,28 @@ namespace THJPatcher
                 StatusLibrary.Log("Up to date - no update needed");
             }
 
+            await Task.Delay(1000); // Pause before integrity check
+
             // Perform file integrity check
             StatusLibrary.Log("Performing file integrity check...");
+            txtProgress.Visibility = Visibility.Visible;
+            progressBar.Value = 0;
             List<FileEntry> missingOrModifiedFiles = new List<FileEntry>();
+
+            int totalFiles = filelist.downloads.Count;
+            int checkedFiles = 0;
 
             foreach (var entry in filelist.downloads)
             {
+                checkedFiles++;
+                // Update progress bar (0-100 range)
+                int progress = (int)((double)checkedFiles / totalFiles * 100);
+                Dispatcher.Invoke(() =>
+                {
+                    progressBar.Value = progress;
+                    txtProgress.Text = $"Checking files: {progress}%";
+                });
+
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
                 if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
                 {
@@ -744,6 +760,13 @@ namespace THJPatcher
                     }
                 }
             }
+
+            // Hide progress bar after check
+            Dispatcher.Invoke(() =>
+            {
+                txtProgress.Visibility = Visibility.Collapsed;
+                progressBar.Value = 0;
+            });
 
             if (missingOrModifiedFiles.Count > 0)
             {
