@@ -963,6 +963,18 @@ namespace THJPatcher
                         continue;
                     }
                 }
+                else
+                {
+                    // File doesn't exist but should - log this and continue to download
+                    StatusLibrary.Log($"Missing file detected: {entry.name}");
+                }
+
+                // Create directory if it doesn't exist
+                string directory = Path.GetDirectoryName(path);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
 
                 // Try primary download URL first
                 string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
@@ -981,6 +993,12 @@ namespace THJPatcher
                 }
 
                 // Verify the downloaded file's MD5
+                if (!await Task.Run(() => File.Exists(path)))
+                {
+                    StatusLibrary.Log($"[Error] Failed to create file {entry.name}");
+                    continue;
+                }
+
                 var downloadedMd5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
                 if (downloadedMd5.ToUpper() != entry.md5.ToUpper())
                 {
