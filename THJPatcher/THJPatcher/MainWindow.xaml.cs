@@ -920,28 +920,6 @@ namespace THJPatcher
                 StatusLibrary.Log($"[Warning] Failed to process delete.txt: {ex.Message}");
             }
 
-            // Get the client version suffix
-            string suffix = "rof"; // Since we're only supporting RoF/RoF2
-
-            // Download the filelist
-            string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
-            string response = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
-            if (response != "")
-            {
-                StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {response}");
-                return;
-            }
-
-            // Parse the filelist
-            FileList filelist;
-            using (var input = await Task.Run(() => File.OpenText($"{Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath)}\\filelist.yml")))
-            {
-                var deserializerBuilder = new DeserializerBuilder()
-                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
-                    .Build();
-                filelist = await Task.Run(() => deserializerBuilder.Deserialize<FileList>(input));
-            }
-
             // Calculate total patch size
             double totalBytes = await Task.Run(() =>
             {
@@ -1484,5 +1462,4 @@ namespace THJPatcher
             return null;
         }
     }
-} 
-} 
+}
