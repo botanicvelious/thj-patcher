@@ -716,7 +716,48 @@ namespace THJPatcher
                 StatusLibrary.Log("Up to date - no update needed");
             }
 
-            // If we get here, no updates are needed
+            // Perform file integrity check
+            StatusLibrary.Log("Performing file integrity check...");
+            List<FileEntry> missingOrModifiedFiles = new List<FileEntry>();
+
+            foreach (var entry in filelist.downloads)
+            {
+                var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
+                {
+                    StatusLibrary.Log($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
+                    continue;
+                }
+
+                if (!await Task.Run(() => File.Exists(path)))
+                {
+                    StatusLibrary.Log($"Missing file detected: {entry.name}");
+                    missingOrModifiedFiles.Add(entry);
+                }
+                else
+                {
+                    var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                    if (md5.ToUpper() != entry.md5.ToUpper())
+                    {
+                        StatusLibrary.Log($"Modified file detected: {entry.name}");
+                        missingOrModifiedFiles.Add(entry);
+                    }
+                }
+            }
+
+            if (missingOrModifiedFiles.Count > 0)
+            {
+                StatusLibrary.Log($"Found {missingOrModifiedFiles.Count} files that need to be updated.");
+                Dispatcher.Invoke(() =>
+                {
+                    StatusLibrary.Log("Update needed! Click PATCH to begin.");
+                    btnPatch.Visibility = Visibility.Visible;
+                    btnPlay.Visibility = Visibility.Collapsed;
+                });
+                return;
+            }
+
+            // If we get here, no updates are needed and all files are intact
             await Task.Delay(1000); 
 
             Dispatcher.Invoke(() =>
