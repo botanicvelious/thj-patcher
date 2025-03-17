@@ -675,20 +675,18 @@ namespace THJPatcher
                         if (response != myHash)
                         {
                             isNeedingSelfUpdate = true;
-                            if (!isSilentMode)
+                            Dispatcher.Invoke(() =>
                             {
-                                var message = "A new version of the patcher is available. Would you like to update now?";
-                                if (isAutoConfirm || CustomMessageBox.Show(message))
-                                {
-                                    // Proceed with self-update
-                                    await StartPatch();
-                                }
-                            }
-                            else if (isAutoConfirm)
+                                StatusLibrary.Log("Patcher update available! Click PATCH to begin.");
+                                btnPatch.Visibility = Visibility.Visible;
+                                btnPlay.Visibility = Visibility.Collapsed;
+                            });
+                            // In silent mode, automatically start patching
+                            if (isSilentMode && isAutoConfirm)
                             {
-                                // Proceed with self-update in silent mode
                                 await StartPatch();
                             }
+                            return;
                         }
                     }
                 }
@@ -840,10 +838,17 @@ namespace THJPatcher
 
             isPatching = true;
             isPatchCancelled = false;
-            btnPatch.IsEnabled = false;
-            btnPlay.IsEnabled = false;
-            chkAutoPatch.IsEnabled = false;
-            chkAutoPlay.IsEnabled = false;
+            
+            // Hide patch button and show play button when patch starts
+            Dispatcher.Invoke(() =>
+            {
+                btnPatch.Visibility = Visibility.Collapsed;
+                btnPlay.Visibility = Visibility.Visible;
+                btnPatch.IsEnabled = false;
+                btnPlay.IsEnabled = false;
+                chkAutoPatch.IsEnabled = false;
+                chkAutoPlay.IsEnabled = false;
+            });
 
             try
             {
@@ -867,10 +872,13 @@ namespace THJPatcher
             finally
             {
                 isPatching = false;
-                btnPatch.IsEnabled = true;
-                btnPlay.IsEnabled = true;
-                chkAutoPatch.IsEnabled = true;
-                chkAutoPlay.IsEnabled = true;
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.IsEnabled = true;
+                    btnPlay.IsEnabled = true;
+                    chkAutoPatch.IsEnabled = true;
+                    chkAutoPlay.IsEnabled = true;
+                });
             }
         }
 
@@ -883,7 +891,7 @@ namespace THJPatcher
             // Handle self-update first if needed and not in debug mode
             if (!isDebugMode && myHash != "" && isNeedingSelfUpdate)
             {
-                StatusLibrary.Log("Downloading update...");
+                StatusLibrary.Log("Downloading patcher update...");
                 string url = $"{patcherUrl}/{fileName}.exe";
                 try
                 {
@@ -903,13 +911,16 @@ namespace THJPatcher
                             await w.WriteAsync(data, 0, data.Length, cts.Token);
                         }
                     });
-                    StatusLibrary.Log($"Self update complete. New version will be used next run.");
+                    StatusLibrary.Log($"Patcher update complete. New version will be used next run.");
+                    isNeedingSelfUpdate = false;
+                    return;
                 }
                 catch (Exception e)
                 {
-                    StatusLibrary.Log($"Self update failed {url}: {e.Message}");
+                    StatusLibrary.Log($"Patcher update failed {url}: {e.Message}");
+                    isNeedingSelfUpdate = false;
+                    return;
                 }
-                isNeedingSelfUpdate = false;
             }
 
             if (isPatchCancelled)
