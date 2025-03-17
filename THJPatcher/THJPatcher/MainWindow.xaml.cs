@@ -635,6 +635,10 @@ namespace THJPatcher
 
         private async Task CheckForUpdates()
         {
+            if (isSilentMode)
+            {
+                Console.WriteLine("Starting silent update check...");
+            }
             StatusLibrary.Log("Checking for updates...");
             await Task.Delay(2000);
 
@@ -684,6 +688,10 @@ namespace THJPatcher
                             // In silent mode, automatically start patching
                             if (isSilentMode && isAutoConfirm)
                             {
+                                if (isSilentMode)
+                                {
+                                    Console.WriteLine("Patcher update available. Starting automatic update...");
+                                }
                                 await StartPatch();
                             }
                             return;
@@ -1235,7 +1243,14 @@ namespace THJPatcher
                 int displayProgress = progress / 100;
                 progressBar.Value = displayProgress;
                 // Use the actual progress bar value for the text
-                txtProgress.Text = $"{(int)progressBar.Value}%";
+                string progressText = $"{(int)progressBar.Value}%";
+                txtProgress.Text = progressText;
+
+                // If in silent mode, also write progress to console
+                if (isSilentMode)
+                {
+                    Console.WriteLine($"Progress: {progressText}");
+                }
             });
         }
 
@@ -1270,6 +1285,12 @@ namespace THJPatcher
             {
                 // Append the new message
                 txtLog.AppendText(message + Environment.NewLine);
+
+                // If in silent mode, also write to console
+                if (isSilentMode)
+                {
+                    Console.WriteLine(message);
+                }
 
                 // Only auto-scroll if enabled
                 if (autoScroll)
