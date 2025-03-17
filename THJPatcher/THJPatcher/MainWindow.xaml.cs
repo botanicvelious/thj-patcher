@@ -129,6 +129,8 @@ namespace THJPatcher
         private bool isAutoPatch = false;
         private bool isAutoPlay = false;
         private bool isDebugMode = false;
+        private bool isSilentMode = false;
+        private bool isAutoConfirm = false;
         private CancellationTokenSource cts;
         private Process process;
         private string myHash = "";
@@ -167,6 +169,31 @@ namespace THJPatcher
             btnPlay.Click += BtnPlay_Click;
             chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
+
+            // Parse command line arguments
+            var args = Environment.GetCommandLineArgs();
+            foreach (var arg in args)
+            {
+                switch (arg.ToLower())
+                {
+                    case "--silent":
+                        isSilentMode = true;
+                        break;
+                    case "--confirm":
+                        isAutoConfirm = true;
+                        break;
+                    case "--debug":
+                        isDebugMode = true;
+                        break;
+                }
+            }
+
+            // If in silent mode, hide the window
+            if (isSilentMode)
+            {
+                this.WindowState = WindowState.Minimized;
+                this.ShowInTaskbar = false;
+            }
 
             // Initialize changelogs
             InitializeChangelogs();
@@ -611,16 +638,16 @@ namespace THJPatcher
             StatusLibrary.Log("Checking for updates...");
             await Task.Delay(2000);
 
-            // Show latest changelog window if we have changelogs AND they're new
-            if (changelogs.Any() && hasNewChangelogs)
+            // Show latest changelog window if we have changelogs AND they're new AND not in silent mode
+            if (changelogs.Any() && hasNewChangelogs && !isSilentMode)
             {
                 StatusLibrary.Log("Showing latest changelog window");
                 var latestChangelog = changelogs.OrderByDescending(x => x.Timestamp).First();
                 var latestChangelogWindow = new LatestChangelogWindow(latestChangelog);
                 latestChangelogWindow.ShowDialog();
 
-                // Only proceed if the user acknowledged the changelog
-                if (!latestChangelogWindow.IsAcknowledged)
+                // Only proceed if the user acknowledged the changelog or we're in auto-confirm mode
+                if (!latestChangelogWindow.IsAcknowledged && !isAutoConfirm)
                 {
                     return;
                 }
@@ -648,27 +675,26 @@ namespace THJPatcher
                         if (response != myHash)
                         {
                             isNeedingSelfUpdate = true;
-                            if (!isPendingPatch)
+                            if (!isSilentMode)
                             {
-                                Dispatcher.Invoke(() =>
+                                var message = "A new version of the patcher is available. Would you like to update now?";
+                                if (isAutoConfirm || CustomMessageBox.Show(message))
                                 {
-                                    StatusLibrary.Log("Patcher update needed");
-                                    StatusLibrary.Log("Update available! Click PATCH to begin.");
-                                    btnPatch.Visibility = Visibility.Visible;
-                                    btnPlay.Visibility = Visibility.Collapsed;
-                                });
-                                return;
+                                    // Proceed with self-update
+                                    await StartPatch();
+                                }
                             }
-                        }
-                        else
-                        {
-                            StatusLibrary.Log("Patcher is up to date");
+                            else if (isAutoConfirm)
+                            {
+                                // Proceed with self-update in silent mode
+                                await StartPatch();
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    StatusLibrary.Log($"[Error] Exception during patcher update check: {ex.Message}");
+                    StatusLibrary.Log($"[Error] Failed to check patcher version: {ex.Message}");
                 }
             }
             else
@@ -846,51 +872,35 @@ namespace THJPatcher
 
         private async void StartPatch()
         {
-            if (isPatching) return;
+            if (isPatching || isPatchCancelled) return;
 
-            cts = new CancellationTokenSource();
-            isPatchCancelled = false;
-            txtLog.Clear();
-            StatusLibrary.SetPatchState(true);
             isPatching = true;
-            btnPatch.Background = _defaultButtonBrush;
-            txtProgress.Visibility = Visibility.Visible;
-            progressBar.Value = 0;
-            txtProgress.Text = "0%";
-            StatusLibrary.Log("Patching in progress...");
-            await Task.Delay(1000); // 1 second pause
-            btnPatch.Visibility = Visibility.Collapsed;
+            isPatchCancelled = false;
+            btnPatch.IsEnabled = false;
+            btnPlay.IsEnabled = false;
+            chkAutoPatch.IsEnabled = false;
+            chkAutoPlay.IsEnabled = false;
 
             try
             {
                 await AsyncPatch();
-                
-                if (!isPatchCancelled)
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[Error] Failed to patch: {ex.Message}");
+                if (!isSilentMode)
                 {
-                    await Task.Delay(1000);
-                    StatusLibrary.Log("Patch complete! Ready to play!");
-                    btnPlay.Visibility = Visibility.Visible;
-                    txtProgress.Visibility = Visibility.Collapsed;
-                    
-                    if (isAutoPlay)
-                    {
-                        await Task.Delay(2000);
-                        BtnPlay_Click(null, null);
-                    }
+                    MessageBox.Show($"Failed to patch: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
-            catch (Exception e)
+            finally
             {
-                await Task.Delay(1000);
-                StatusLibrary.Log($"Exception during patch: {e.Message}");
-                btnPatch.Visibility = Visibility.Visible;
-                txtProgress.Visibility = Visibility.Collapsed;
+                isPatching = false;
+                btnPatch.IsEnabled = true;
+                btnPlay.IsEnabled = true;
+                chkAutoPatch.IsEnabled = true;
+                chkAutoPlay.IsEnabled = true;
             }
-
-            StatusLibrary.SetPatchState(false);
-            isPatching = false;
-            isPatchCancelled = false;
-            cts.Cancel();
         }
 
         private async Task AsyncPatch()
