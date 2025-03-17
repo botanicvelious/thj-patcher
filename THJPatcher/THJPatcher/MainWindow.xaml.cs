@@ -101,7 +101,7 @@ namespace THJPatcher
                     "Server hamster demands a raise, Aporia Refused...",
                     "'Balancing' pet builds...",
                     "I Pity the Fool who tries to stop me...",
-                    "You have ruined your own lands..... you will not ruin mine!...."
+                    "You have ruined your own lands..... you will not ruin mine!....",
                     "Im winning at Fashion Quest...",
                     "Welcome to The Heroes Journey—where your class build is only limited by your imagination.",
                     "Three-class builds allow for endless customization—choose wisely, adventure boldly!",
