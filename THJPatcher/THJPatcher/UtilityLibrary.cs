@@ -114,8 +114,23 @@ namespace THJPatcher
             {
                 FileName = System.IO.Path.GetDirectoryName(Application.ExecutablePath) + "\\eqgame.exe",
                 Arguments = "patchme",
-                WorkingDirectory = System.IO.Path.GetDirectoryName(Application.ExecutablePath)
+                WorkingDirectory = System.IO.Path.GetDirectoryName(Application.ExecutablePath),
+                UseShellExecute = true,
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
+                CreateNoWindow = false
             };
+
+            // On Linux, we need to use nohup to detach the process
+            if (Environment.OSVersion.Platform == PlatformID.Unix)
+            {
+                startInfo.FileName = "nohup";
+                startInfo.Arguments = $"\"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}/eqgame.exe\" patchme";
+                startInfo.UseShellExecute = false;
+                startInfo.RedirectStandardOutput = true;
+                startInfo.RedirectStandardError = true;
+                startInfo.CreateNoWindow = true;
+            }
 
             var process = System.Diagnostics.Process.Start(startInfo);
 
