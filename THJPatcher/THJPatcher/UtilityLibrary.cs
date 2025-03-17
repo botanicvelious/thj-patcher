@@ -118,19 +118,10 @@ namespace THJPatcher
                 UseShellExecute = true,
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
-                CreateNoWindow = false
+                CreateNoWindow = false,
+                LoadUserProfile = true,
+                WindowStyle = ProcessWindowStyle.Normal
             };
-
-            // On Linux, we need to use nohup to detach the process
-            if (Environment.OSVersion.Platform == PlatformID.Unix)
-            {
-                startInfo.FileName = "nohup";
-                startInfo.Arguments = $"\"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}/eqgame.exe\" patchme";
-                startInfo.UseShellExecute = false;
-                startInfo.RedirectStandardOutput = true;
-                startInfo.RedirectStandardError = true;
-                startInfo.CreateNoWindow = true;
-            }
 
             var process = System.Diagnostics.Process.Start(startInfo);
 
