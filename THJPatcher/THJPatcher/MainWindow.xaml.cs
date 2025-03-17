@@ -627,7 +627,7 @@ namespace THJPatcher
             {
                 isPendingPatch = true;
                 await Task.Delay(1000);
-                StartPatch();
+                await StartPatch();
             }
             
             isLoading = false;
@@ -817,60 +817,7 @@ namespace THJPatcher
             });
         }
 
-        private void BtnPatch_Click(object sender, RoutedEventArgs e)
-        {
-            if (isLoading && !isPendingPatch)
-            {
-                isPendingPatch = true;
-                StatusLibrary.Log("Checking for updates...");
-                btnPatch.Content = "CANCEL";
-                return;
-            }
-
-            if (isPatching)
-            {
-                isPatchCancelled = true;
-                cts.Cancel();
-                return;
-            }
-            StartPatch();
-        }
-
-        private void BtnPlay_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                process = UtilityLibrary.StartEverquest();
-                if (process != null)
-                    this.Close();
-                else
-                    MessageBox.Show("The process failed to start", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            catch (Exception err)
-            {
-                MessageBox.Show($"An error occurred while trying to start Everquest: {err.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void ChkAutoPatch_CheckedChanged(object sender, RoutedEventArgs e)
-        {
-            if (isLoading) return;
-            isAutoPatch = chkAutoPatch.IsChecked ?? false;
-            IniLibrary.instance.AutoPatch = isAutoPatch ? "true" : "false";
-            IniLibrary.Save();
-        }
-
-        private void ChkAutoPlay_CheckedChanged(object sender, RoutedEventArgs e)
-        {
-            if (isLoading) return;
-            isAutoPlay = chkAutoPlay.IsChecked ?? false;
-            IniLibrary.instance.AutoPlay = isAutoPlay ? "true" : "false";
-            if (isAutoPlay)
-                StatusLibrary.Log("To disable autoplay: edit thjpatcher.yml or wait until next patch.");
-            IniLibrary.Save();
-        }
-
-        private async void StartPatch()
+        private async Task StartPatch()
         {
             if (isPatching || isPatchCancelled) return;
 
@@ -1584,6 +1531,59 @@ namespace THJPatcher
                 return loadingMessages.Messages[random.Next(loadingMessages.Messages.Count)];
             }
             return null;
+        }
+
+        private async void BtnPatch_Click(object sender, RoutedEventArgs e)
+        {
+            if (isLoading && !isPendingPatch)
+            {
+                isPendingPatch = true;
+                StatusLibrary.Log("Checking for updates...");
+                btnPatch.Content = "CANCEL";
+                return;
+            }
+
+            if (isPatching)
+            {
+                isPatchCancelled = true;
+                cts.Cancel();
+                return;
+            }
+            await StartPatch();
+        }
+
+        private void BtnPlay_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                process = UtilityLibrary.StartEverquest();
+                if (process != null)
+                    this.Close();
+                else
+                    MessageBox.Show("The process failed to start", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception err)
+            {
+                MessageBox.Show($"An error occurred while trying to start Everquest: {err.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ChkAutoPatch_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            if (isLoading) return;
+            isAutoPatch = chkAutoPatch.IsChecked ?? false;
+            IniLibrary.instance.AutoPatch = isAutoPatch ? "true" : "false";
+            IniLibrary.Save();
+        }
+
+        private void ChkAutoPlay_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            if (isLoading) return;
+            isAutoPlay = chkAutoPlay.IsChecked ?? false;
+            IniLibrary.instance.AutoPlay = isAutoPlay ? "true" : "false";
+            if (isAutoPlay)
+                StatusLibrary.Log("To disable autoplay: edit thjpatcher.yml or wait until next patch.");
+            IniLibrary.Save();
         }
     }
 }
