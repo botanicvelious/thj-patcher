@@ -734,6 +734,11 @@ namespace THJPatcher
                         btnPatch.Visibility = Visibility.Visible;
                         btnPlay.Visibility = Visibility.Collapsed;
                     });
+                    // In silent mode, automatically start patching
+                    if (isSilentMode && isAutoConfirm)
+                    {
+                        await StartPatch();
+                    }
                     return;
                 }
             }
@@ -803,6 +808,11 @@ namespace THJPatcher
                     btnPatch.Visibility = Visibility.Visible;
                     btnPlay.Visibility = Visibility.Collapsed;
                 });
+                // In silent mode, automatically start patching
+                if (isSilentMode && isAutoConfirm)
+                {
+                    await StartPatch();
+                }
                 return;
             }
 
@@ -815,6 +825,13 @@ namespace THJPatcher
                 btnPatch.Visibility = Visibility.Collapsed;
                 btnPlay.Visibility = Visibility.Visible;
             });
+
+            // In silent mode, automatically start the game
+            if (isSilentMode && isAutoConfirm)
+            {
+                await Task.Delay(2000); // Give a small delay to show completion
+                BtnPlay_Click(null, null);
+            }
         }
 
         private async Task StartPatch()
@@ -831,6 +848,13 @@ namespace THJPatcher
             try
             {
                 await AsyncPatch();
+                
+                // After successful patch, if in silent mode, start the game
+                if (isSilentMode && isAutoConfirm)
+                {
+                    await Task.Delay(2000); // Give a small delay to show completion
+                    BtnPlay_Click(null, null);
+                }
             }
             catch (Exception ex)
             {
