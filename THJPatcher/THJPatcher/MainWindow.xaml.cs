@@ -188,11 +188,13 @@ namespace THJPatcher
                 }
             }
 
-            // If in silent mode, hide the window
+            // If in silent mode, hide the window and ensure console output is visible
             if (isSilentMode)
             {
                 this.WindowState = WindowState.Minimized;
                 this.ShowInTaskbar = false;
+                Console.WriteLine("Starting THJ Patcher in silent mode...");
+                Console.WriteLine("----------------------------------------");
             }
 
             // Initialize changelogs
@@ -1246,10 +1248,11 @@ namespace THJPatcher
                 string progressText = $"{(int)progressBar.Value}%";
                 txtProgress.Text = progressText;
 
-                // If in silent mode, also write progress to console
+                // If in silent mode, also write progress to console and flush immediately
                 if (isSilentMode)
                 {
                     Console.WriteLine($"Progress: {progressText}");
+                    Console.Out.Flush();
                 }
             });
         }
@@ -1286,10 +1289,11 @@ namespace THJPatcher
                 // Append the new message
                 txtLog.AppendText(message + Environment.NewLine);
 
-                // If in silent mode, also write to console
+                // If in silent mode, also write to console and flush immediately
                 if (isSilentMode)
                 {
                     Console.WriteLine(message);
+                    Console.Out.Flush();
                 }
 
                 // Only auto-scroll if enabled
@@ -1650,13 +1654,42 @@ namespace THJPatcher
             {
                 process = UtilityLibrary.StartEverquest();
                 if (process != null)
+                {
+                    if (isSilentMode)
+                    {
+                        Console.WriteLine("Starting EverQuest...");
+                        Console.Out.Flush();
+                        // Add a small delay to ensure the message is visible
+                        Thread.Sleep(1000);
+                    }
                     this.Close();
+                }
                 else
-                    MessageBox.Show("The process failed to start", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                {
+                    if (isSilentMode)
+                    {
+                        Console.WriteLine("[ERROR] Failed to start EverQuest");
+                        Console.Out.Flush();
+                        Thread.Sleep(2000); // Longer delay for errors
+                    }
+                    else
+                    {
+                        MessageBox.Show("The process failed to start", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
             }
             catch (Exception err)
             {
-                MessageBox.Show($"An error occurred while trying to start Everquest: {err.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                if (isSilentMode)
+                {
+                    Console.WriteLine($"[ERROR] Failed to start EverQuest: {err.Message}");
+                    Console.Out.Flush();
+                    Thread.Sleep(2000); // Longer delay for errors
+                }
+                else
+                {
+                    MessageBox.Show($"An error occurred while trying to start Everquest: {err.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
