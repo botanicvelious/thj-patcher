@@ -100,6 +100,8 @@ namespace THJPatcher
                     "Adding more duct tape to the database—should be fine...",
                     "Server hamster demands a raise, Aporia Refused...",
                     "'Balancing' pet builds...",
+                    "I Pity the Fool who tries to stop me...",
+                    "You have ruined your own lands..... you will not ruin mine!...."
                     "Im winning at Fashion Quest...",
                     "Welcome to The Heroes Journey—where your class build is only limited by your imagination.",
                     "Three-class builds allow for endless customization—choose wisely, adventure boldly!",
@@ -111,7 +113,7 @@ namespace THJPatcher
                     "Entering Vex Thal… see you next year...",
                     "Heading into Plane of Time… don't worry, you will need plenty of it....",
                     "Aporia tried to nerf Bards… but they twisted out of it.",
-                    "Xegony's winds are howling… or is that just the lag?"
+                    "Xegony's winds are howling… or is that just the lag?...."
                 }
             };
         }
