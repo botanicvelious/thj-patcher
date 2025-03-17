@@ -1026,6 +1026,7 @@ namespace THJPatcher
 
             double currentBytes = 1;
             double patchedBytes = 0;
+            bool hasErrors = false;
 
             // If no files need downloading, we're done
             if (filesToDownload.Count == 0)
@@ -1059,39 +1060,63 @@ namespace THJPatcher
                     Directory.CreateDirectory(directory);
                 }
 
-                // Try backup URL first since we know files exist there
-                string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
-                string response = await UtilityLibrary.DownloadFile(cts, backupUrl, entry.name);
-                
-                // If backup fails, try primary URL
-                if (response != "")
+                bool downloadSuccess = false;
+                int retryCount = 0;
+                const int maxRetries = 3;
+
+                while (!downloadSuccess && retryCount < maxRetries)
                 {
-                    string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
-                    response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
+                    // Try backup URL first since we know files exist there
+                    string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
+                    string response = await UtilityLibrary.DownloadFile(cts, backupUrl, entry.name);
+                    
+                    // If backup fails, try primary URL
                     if (response != "")
                     {
-                        StatusLibrary.Log($"Failed to download {entry.name} ({generateSize(entry.size)}): {response}");
-                        continue;  // Skip this file but continue with others
+                        string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
+                        response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
+                        if (response != "")
+                        {
+                            StatusLibrary.Log($"Failed to download {entry.name} ({generateSize(entry.size)}): {response}");
+                            retryCount++;
+                            continue;
+                        }
                     }
+
+                    // Verify the downloaded file's MD5
+                    if (!await Task.Run(() => File.Exists(path)))
+                    {
+                        StatusLibrary.Log($"[Error] Failed to create file {entry.name}");
+                        retryCount++;
+                        continue;
+                    }
+
+                    var downloadedMd5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                    if (downloadedMd5.ToUpper() != entry.md5.ToUpper())
+                    {
+                        StatusLibrary.Log($"[Warning] MD5 mismatch for {entry.name}. Expected: {entry.md5.ToUpper()}, Got: {downloadedMd5.ToUpper()}");
+                        retryCount++;
+                        if (retryCount < maxRetries)
+                        {
+                            StatusLibrary.Log($"Retrying download of {entry.name} (attempt {retryCount + 1}/{maxRetries})...");
+                            await Task.Delay(1000); // Wait a bit before retrying
+                            continue;
+                        }
+                        hasErrors = true;
+                        break;
+                    }
+
+                    downloadSuccess = true;
+                    StatusLibrary.Log($"{entry.name} ({generateSize(entry.size)})");
+                    currentBytes += entry.size;
+                    patchedBytes += entry.size;
                 }
 
-                // Verify the downloaded file's MD5
-                if (!await Task.Run(() => File.Exists(path)))
+                if (!downloadSuccess)
                 {
-                    StatusLibrary.Log($"[Error] Failed to create file {entry.name}");
-                    continue;
+                    hasErrors = true;
+                    StatusLibrary.Log($"[Error] Failed to download and verify {entry.name} after {maxRetries} attempts");
                 }
-
-                var downloadedMd5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
-                if (downloadedMd5.ToUpper() != entry.md5.ToUpper())
-                {
-                    StatusLibrary.Log($"[Warning] MD5 mismatch for {entry.name}. Expected: {entry.md5.ToUpper()}, Got: {downloadedMd5.ToUpper()}");
-                    continue;
-                }
-
-                StatusLibrary.Log($"{entry.name} ({generateSize(entry.size)})");
-                currentBytes += entry.size;
-                patchedBytes += entry.size;
             }
 
             // Handle file deletions
@@ -1123,6 +1148,7 @@ namespace THJPatcher
                         catch (Exception ex)
                         {
                             StatusLibrary.Log($"[Warning] Failed to delete {entry.name}: {ex.Message}");
+                            hasErrors = true;
                         }
                     }
                 }
@@ -1133,6 +1159,16 @@ namespace THJPatcher
             // Update LastPatchedVersion and save configuration
             IniLibrary.instance.LastPatchedVersion = filelist.version;
             await Task.Run(() => IniLibrary.Save());
+
+            if (hasErrors)
+            {
+                StatusLibrary.Log("[Error] Patch completed with errors. Some files may not have been updated correctly.");
+                if (!isSilentMode)
+                {
+                    MessageBox.Show("The patch completed with errors. Some files may not have been updated correctly. Please try running the patcher again.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+                return;
+            }
 
             if (patchedBytes == 0)
             {
