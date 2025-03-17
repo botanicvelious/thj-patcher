@@ -1659,8 +1659,16 @@ namespace THJPatcher
                     {
                         Console.WriteLine("Starting EverQuest...");
                         Console.Out.Flush();
-                        // Add a small delay to ensure the message is visible
-                        Thread.Sleep(1000);
+                        
+                        // Ensure the process is properly detached
+                        process.EnableRaisingEvents = false;
+                        process.StartInfo.UseShellExecute = true;
+                        process.StartInfo.RedirectStandardOutput = false;
+                        process.StartInfo.RedirectStandardError = false;
+                        process.StartInfo.CreateNoWindow = false;
+                        
+                        // Give the process time to fully start
+                        Thread.Sleep(2000);
                     }
                     this.Close();
                 }
