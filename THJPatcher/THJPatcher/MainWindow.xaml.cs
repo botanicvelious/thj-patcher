@@ -1724,9 +1724,9 @@ namespace THJPatcher
             IniLibrary.Save();
         }
 
-        private void MainWindow_KeyDown(object sender, KeyEventArgs e)
+        private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
+            if (e.Key == System.Windows.Input.Key.Enter)
             {
                 // Check if Patch button is visible and enabled
                 if (btnPatch.Visibility == Visibility.Visible && btnPatch.IsEnabled)
