@@ -172,6 +172,9 @@ namespace THJPatcher
             chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
 
+            // Add KeyDown event handler for Enter key
+            this.KeyDown += MainWindow_KeyDown;
+
             // Parse command line arguments
             var args = Environment.GetCommandLineArgs();
             foreach (var arg in args)
@@ -1719,6 +1722,23 @@ namespace THJPatcher
             if (isAutoPlay)
                 StatusLibrary.Log("To disable autoplay: edit thjpatcher.yml or wait until next patch.");
             IniLibrary.Save();
+        }
+
+        private void MainWindow_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                // Check if Patch button is visible and enabled
+                if (btnPatch.Visibility == Visibility.Visible && btnPatch.IsEnabled)
+                {
+                    BtnPatch_Click(null, null);
+                }
+                // Check if Play button is visible and enabled
+                else if (btnPlay.Visibility == Visibility.Visible && btnPlay.IsEnabled)
+                {
+                    BtnPlay_Click(null, null);
+                }
+            }
         }
     }
 }
