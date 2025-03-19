@@ -921,18 +921,40 @@ namespace THJPatcher
                     string localExePath = Process.GetCurrentProcess().MainModule.FileName;
                     string localExeName = Path.GetFileName(localExePath);
                     
-                    if (File.Exists(localExePath + ".old"))
-                    {
-                        await Task.Run(() => File.Delete(localExePath + ".old"));
-                    }
-                    await Task.Run(() => File.Move(localExePath, localExePath + ".old"));
+                    // Create a temporary file for the new patcher
+                    string tempExePath = Path.Combine(Path.GetDirectoryName(localExePath), "temp_" + localExeName);
+                    
+                    // Write the new patcher to the temp file
                     await Task.Run(async () =>
                     {
-                        using (var w = File.Create(localExePath))
+                        using (var w = File.Create(tempExePath))
                         {
                             await w.WriteAsync(data, 0, data.Length, cts.Token);
                         }
                     });
+
+                    // Verify the new patcher's MD5
+                    var newHash = await Task.Run(() => UtilityLibrary.GetMD5(tempExePath));
+                    if (newHash.ToUpper() != myHash.ToUpper())
+                    {
+                        StatusLibrary.Log("[Error] Downloaded patcher MD5 mismatch. Update failed.");
+                        await Task.Run(() => File.Delete(tempExePath));
+                        return;
+                    }
+
+                    // If we get here, the new patcher is valid
+                    // Delete the old backup if it exists
+                    if (File.Exists(localExePath + ".old"))
+                    {
+                        await Task.Run(() => File.Delete(localExePath + ".old"));
+                    }
+
+                    // Move the current patcher to .old
+                    await Task.Run(() => File.Move(localExePath, localExePath + ".old"));
+
+                    // Move the temp file to the final location
+                    await Task.Run(() => File.Move(tempExePath, localExePath));
+
                     StatusLibrary.Log("Patcher update complete!");
                     StatusLibrary.Log("Restarting patcher to apply update...");
                     
@@ -948,7 +970,7 @@ namespace THJPatcher
                     // Give the user time to read the message
                     await Task.Delay(2000);
 
-                    // Start the new patcher
+                    // Start the new patcher with the same arguments
                     Process.Start(new ProcessStartInfo
                     {
                         FileName = localExePath,
