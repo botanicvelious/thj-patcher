@@ -1098,6 +1098,25 @@ namespace THJPatcher
                     Directory.CreateDirectory(directory);
                 }
 
+                // Skip DLL files that are currently in use
+                if (entry.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        // Try to open the file for writing to check if it's locked
+                        using (FileStream fs = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                        {
+                            // If we get here, the file isn't locked
+                            fs.Close();
+                        }
+                    }
+                    catch (IOException)
+                    {
+                        StatusLibrary.Log($"[Warning] Skipping {entry.name} - file is currently in use");
+                        continue;
+                    }
+                }
+
                 bool downloadSuccess = false;
                 int retryCount = 0;
                 const int maxRetries = 3;
