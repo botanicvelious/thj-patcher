@@ -932,9 +932,31 @@ namespace THJPatcher
                             await w.WriteAsync(data, 0, data.Length, cts.Token);
                         }
                     });
-                    StatusLibrary.Log($"Patcher update complete. New version will be used next run.");
-                    isNeedingSelfUpdate = false;
-                    return;
+                    StatusLibrary.Log("Patcher update complete!");
+                    StatusLibrary.Log("Restarting patcher to apply update...");
+                    
+                    // Hide the play button and show a message
+                    Dispatcher.Invoke(() =>
+                    {
+                        btnPlay.Visibility = Visibility.Collapsed;
+                        btnPatch.Visibility = Visibility.Visible;
+                        btnPatch.Content = "RESTARTING...";
+                        btnPatch.IsEnabled = false;
+                    });
+
+                    // Give the user time to read the message
+                    await Task.Delay(2000);
+
+                    // Start the new patcher
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = localExePath,
+                        UseShellExecute = true,
+                        Arguments = string.Join(" ", Environment.GetCommandLineArgs().Skip(1))
+                    });
+
+                    // Close the current patcher
+                    Environment.Exit(0);
                 }
                 catch (Exception e)
                 {
