@@ -1015,6 +1015,12 @@ namespace THJPatcher
                 StatusLibrary.SetProgress((int)((double)checkedFiles / totalFiles * 10000));
                 checkedFiles++;
 
+                // Skip heroesjourneyemu.exe as it's the patcher itself
+                if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
                 if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
                 {
