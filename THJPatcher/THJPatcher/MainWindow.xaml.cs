@@ -101,6 +101,7 @@ namespace THJPatcher
                     "Server hamster demands a raise, Aporia Refused...",
                     "'Balancing' pet builds...",
                     "I Pity the Fool...",
+                    "This is why we soft test...",
                     "You have ruined your own lands..... you will not ruin mine!....",
                     "Im winning at Fashion Quest...",
                     "Welcome to The Heroes Journey—where your class build is only limited by your imagination.",
