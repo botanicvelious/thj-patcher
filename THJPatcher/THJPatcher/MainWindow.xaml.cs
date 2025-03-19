@@ -932,11 +932,16 @@ namespace THJPatcher
                         }
                     });
 
-                    // Verify the new patcher's MD5
+                    // Get the expected MD5 from the server
+                    string hashUrl = $"{patcherUrl}{fileName}-hash.txt";
+                    var hashData = await UtilityLibrary.Download(cts, hashUrl);
+                    string expectedHash = System.Text.Encoding.Default.GetString(hashData).Trim().ToUpperInvariant();
+
+                    // Verify the new patcher's MD5 against the expected hash
                     var newHash = await Task.Run(() => UtilityLibrary.GetMD5(tempExePath));
-                    if (newHash.ToUpper() != myHash.ToUpper())
+                    if (newHash.ToUpper() != expectedHash)
                     {
-                        StatusLibrary.Log("[Error] Downloaded patcher MD5 mismatch. Update failed.");
+                        StatusLibrary.Log($"[Error] Downloaded patcher MD5 mismatch. Expected: {expectedHash}, Got: {newHash.ToUpper()}");
                         await Task.Run(() => File.Delete(tempExePath));
                         return;
                     }
