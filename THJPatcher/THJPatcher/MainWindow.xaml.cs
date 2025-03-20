@@ -77,6 +77,7 @@ namespace THJPatcher
         {
             return new LoadingMessages
             {
+                //Messages
                 Messages = new List<string>
                 {
                     "Decreasing exp by 1.1%, how would you know?...",
