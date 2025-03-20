@@ -1030,7 +1030,7 @@ namespace THJPatcher
                 var deleteData = await UtilityLibrary.Download(cts, deleteUrl);
                 if (deleteData != null && deleteData.Length > 0)
                 {
-                    StatusLibrary.Log($"delete.txt ({generateSize(deleteData.Length)})");
+                    StatusLibrary.Log($"Checking for outdated files...");
                     string deleteContent = System.Text.Encoding.UTF8.GetString(deleteData);
                     var filesToDelete = deleteContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     
