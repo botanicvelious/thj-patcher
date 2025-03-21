@@ -637,8 +637,8 @@ namespace THJPatcher
             // Check for updates
             await CheckForUpdates();
             
-            // If we're in auto-patch mode or if this is a restart after self-update, start patching
-            if (isAutoPatch || isNeedingSelfUpdate)
+            // If we're in auto-patch mode, start patching (but not for self-updates)
+            if (isAutoPatch && !isNeedingSelfUpdate)
             {
                 isPendingPatch = true;
                 await Task.Delay(1000);
