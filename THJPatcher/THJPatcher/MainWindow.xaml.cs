@@ -758,15 +758,6 @@ namespace THJPatcher
                                 btnPatch.IsEnabled = true;
                                 btnPatch.Content = "PATCH";
                             });
-                            // In silent mode, automatically start patching
-                            if (isSilentMode && isAutoConfirm)
-                            {
-                                if (isSilentMode)
-                                {
-                                    Console.WriteLine("Patcher update available. Starting automatic update...");
-                                }
-                                await StartPatch();
-                            }
                             return;
                         }
                     }
