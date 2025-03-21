@@ -652,8 +652,8 @@ namespace THJPatcher
         {
             try
             {
-                // Get token from environment variables
-                string token = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
+                // Get token from Constants
+                string token = Constants.PATCHER_TOKEN;
                 if (string.IsNullOrEmpty(token))
                 {
                     StatusLibrary.Log("[ERROR] Unable to authenticate with server status API");
@@ -755,6 +755,8 @@ namespace THJPatcher
                                 StatusLibrary.Log("Patcher update available! Click PATCH to begin.");
                                 btnPatch.Visibility = Visibility.Visible;
                                 btnPlay.Visibility = Visibility.Collapsed;
+                                btnPatch.IsEnabled = true;
+                                btnPatch.Content = "PATCH";
                             });
                             // In silent mode, automatically start patching
                             if (isSilentMode && isAutoConfirm)
