@@ -59,7 +59,19 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- Custom TextBox Style -->
+            <!-- Patch Button Style -->
+            <Style x:Key="PatchButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
+                <Setter Property="BorderThickness" Value="2"/>
+                <Setter Property="BorderBrush" Value="#8B0000"/>
+            </Style>
+
+            <!-- Play Button Style -->
+            <Style x:Key="PlayButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
+                <Setter Property="BorderThickness" Value="2"/>
+                <Setter Property="BorderBrush" Value="#006400"/>
+            </Style>
+
+            <!-- Custom TextBox Style  -->
             <Style x:Key="CustomTextBox" TargetType="TextBox" BasedOn="{StaticResource MaterialDesignTextBox}">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderThickness" Value="0"/>
@@ -135,6 +147,40 @@
 
         <!-- Empty space for image -->
         <Grid Grid.Row="1"/>
+
+        <!-- Player Count -->
+        <TextBlock x:Name="txtPlayerCount"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Top"
+                 FontSize="16"
+                 FontWeight="Bold"
+                 Foreground="#FAE7A1"
+                 Margin="40,30,0,0"
+                 TextAlignment="Center"
+                 LineHeight="20"
+                 Panel.ZIndex="1000"
+                 Grid.Row="1">
+            <Run Text="Players Online:"/>
+            <LineBreak/>
+            <Run Text="0" Foreground="#F8D38D"/>
+        </TextBlock>
+
+        <!-- Exp Bonus -->
+        <TextBlock x:Name="txtExpBonus"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Top"
+                 FontSize="16"
+                 FontWeight="Bold"
+                 Foreground="#FAE7A1"
+                 Margin="560,30,0,0"
+                 TextAlignment="Center"
+                 LineHeight="20"
+                 Panel.ZIndex="1000"
+                 Grid.Row="1">
+            <Run Text="Experience:"/>
+            <LineBreak/>
+            <Run Text="0% Bonus" Foreground="#F8D38D"/>
+        </TextBlock>
 
         <!-- Sidebar Buttons -->
         <StackPanel Grid.Row="2" 
@@ -273,7 +319,7 @@
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
-                    Style="{StaticResource GoldButton}"/>
+                    Style="{StaticResource PatchButton}"/>
 
             <Button x:Name="btnPlay"
                     Content="PLAY"
@@ -281,7 +327,7 @@
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
-                    Style="{StaticResource GoldButton}"/>
+                    Style="{StaticResource PlayButton}"/>
         </StackPanel>
 
         <!-- Main Content -->

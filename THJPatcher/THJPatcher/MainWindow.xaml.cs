@@ -9,6 +9,7 @@ using System.IO;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Collections.Generic;
+using System.Windows.Documents;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 using YamlDotNet.Serialization;
@@ -157,6 +158,7 @@ namespace THJPatcher
         private List<ChangelogInfo> changelogs = new List<ChangelogInfo>();
         private string changelogContent = "";
         private readonly string changelogEndpoint = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
+        private readonly string allChangelogsEndpoint = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/changelog?all=true";
         private readonly string patcherToken;
         private bool hasNewChangelogs = false;
 
@@ -588,12 +590,15 @@ namespace THJPatcher
                 });
             }));
 
+            // Check server status
+            await CheckServerStatus();
+
             // Check and initialize changelog first
             StatusLibrary.Log("Checking for changes...");
             await Task.Delay(1000); // Pause for effect
             
             // Load and display random message
-            loadingMessages = LoadingMessages.CreateDefault();
+            LoadLoadingMessages();
             string randomMessage = GetRandomLoadingMessage();
             if (!string.IsNullOrEmpty(randomMessage))
             {
@@ -641,6 +646,62 @@ namespace THJPatcher
             }
             
             isLoading = false;
+        }
+
+        private async Task CheckServerStatus()
+        {
+            try
+            {
+                // Get token from environment variables
+                string token = Environment.GetEnvironmentVariable("PATCHER_TOKEN");
+                if (string.IsNullOrEmpty(token))
+                {
+                    StatusLibrary.Log("[ERROR] Unable to authenticate with server status API");
+                    StatusLibrary.Log("Continuing....");
+                    return;
+                }
+
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Add("x-patcher-token", token);
+                    
+                    // Check server status
+                    var response = await client.GetStringAsync("http://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/serverstatus");
+                    var status = JsonSerializer.Deserialize<ServerStatus>(response);
+                    
+                    if (status?.Found == true && status.Server != null)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            txtPlayerCount.Inlines.Clear();
+                            txtPlayerCount.Inlines.Add(new Run("Players Online:"));
+                            txtPlayerCount.Inlines.Add(new LineBreak());
+                            txtPlayerCount.Inlines.Add(new Run(status.Server.PlayersOnline.ToString()) { Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(212, 184, 106)) });
+                        });
+                    }
+
+                    // Check exp bonus
+                    var expResponse = await client.GetStringAsync("http://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/expbonus");
+                    var expStatus = JsonSerializer.Deserialize<ExpBonusStatus>(expResponse);
+                    
+                    if (expStatus?.Status == "success" && expStatus.Found)
+                    {
+                        // Extract the percentage from the exp_boost string
+                        var percentage = expStatus.ExpBoost.Split('%')[0].Split(':')[1].Trim();
+                        Dispatcher.Invoke(() =>
+                        {
+                            txtExpBonus.Inlines.Clear();
+                            txtExpBonus.Inlines.Add(new Run("Experience:"));
+                            txtExpBonus.Inlines.Add(new LineBreak());
+                            txtExpBonus.Inlines.Add(new Run($"{percentage}% Bonus") { Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(212, 184, 106)) });
+                        });
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Silently fail - we don't want to show errors for this
+            }
         }
 
         private async Task CheckForUpdates()
@@ -1556,8 +1617,7 @@ namespace THJPatcher
                         client.DefaultRequestHeaders.Add("x-patcher-token", token);
                         try
                         {
-                            var url = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
-                            var httpResponse = await client.GetAsync(url);
+                            var httpResponse = await client.GetAsync(changelogEndpoint);
                             
                             if (httpResponse.StatusCode == System.Net.HttpStatusCode.Forbidden)
                             {
@@ -1632,8 +1692,7 @@ namespace THJPatcher
                     client.DefaultRequestHeaders.Add("x-patcher-token", token);
                     try
                     {
-                        var url = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/changelog?all=true";
-                        var httpResponse = await client.GetAsync(url);
+                        var httpResponse = await client.GetAsync(allChangelogsEndpoint);
                         
                         if (httpResponse.StatusCode == System.Net.HttpStatusCode.Forbidden)
                         {
@@ -1702,7 +1761,7 @@ namespace THJPatcher
             }
         }
 
-        private async Task LoadLoadingMessages()
+        private void LoadLoadingMessages()
         {
             // Create messages directly
             loadingMessages = LoadingMessages.CreateDefault();
