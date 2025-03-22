@@ -344,6 +344,7 @@
                      FontSize="10"
                      Foreground="#FBE9A4"
                      Margin="0,0,20,0"
+                     Panel.ZIndex="1000"
                      Grid.Row="1"/>
 
             <!-- Progress Section -->

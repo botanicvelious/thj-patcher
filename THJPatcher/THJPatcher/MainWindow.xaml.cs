@@ -142,6 +142,7 @@ namespace THJPatcher
         private string patcherUrl;
         private string fileName;
         private string version;
+        public string Version => version;
 
         // Server and file configuration
         private static string serverName;
