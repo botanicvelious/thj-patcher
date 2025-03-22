@@ -688,6 +688,11 @@ namespace THJPatcher
                     {
                         // Extract the percentage from the exp_boost string
                         var percentage = expStatus.ExpBoost.Split('%')[0].Split(':')[1].Trim();
+                        // If the percentage is "Off", show 0%
+                        if (percentage.Equals("Off", StringComparison.OrdinalIgnoreCase))
+                        {
+                            percentage = "0";
+                        }
                         Dispatcher.Invoke(() =>
                         {
                             txtExpBonus.Inlines.Clear();
