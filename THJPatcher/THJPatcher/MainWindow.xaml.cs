@@ -615,7 +615,13 @@ namespace THJPatcher
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
             chkAutoPlay.IsChecked = isAutoPlay;
             chkAutoPatch.IsChecked = isAutoPatch;
-            version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+            
+            // Get the full version including build number
+            var assemblyVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            version = $"v{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}.{assemblyVersion.Revision}";
+            
+            // Set the window as the data context for version binding
+            this.DataContext = this;
 
             // Create DXVK configuration for Linux/Proton compatibility
             try
