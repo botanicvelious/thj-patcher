@@ -155,7 +155,7 @@
                  FontSize="16"
                  FontWeight="Bold"
                  Foreground="#FAE7A1"
-                 Margin="40,30,0,0"
+                 Margin="37,50,0,0"
                  TextAlignment="Center"
                  LineHeight="20"
                  Panel.ZIndex="1000"
@@ -172,7 +172,7 @@
                  FontSize="16"
                  FontWeight="Bold"
                  Foreground="#FAE7A1"
-                 Margin="560,30,0,0"
+                 Margin="560,50,0,0"
                  TextAlignment="Center"
                  LineHeight="20"
                  Panel.ZIndex="1000"
@@ -187,7 +187,7 @@
                     Orientation="Vertical" 
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Margin="85,-270,0,0">
+                    Margin="75,-270,0,0">
             
             <!-- Links Section -->
             <StackPanel Margin="0,0,0,0">
