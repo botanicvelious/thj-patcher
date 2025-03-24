@@ -94,7 +94,7 @@ namespace THJPatcher
                     "Feeding the server hamsters...",
                     "Bribing the RNG gods...",
                     "Aporia is watching you.....",
-                    "Standby.....building a gazebo....."
+                    "Standby.....building a gazebo.....",
                     "Gnomes are not snacks, stop asking...",
                     "Buffing in the Plane of Water… just kidding, no one goes there...",
                     "Undercutting your trader by 1 copper...",
