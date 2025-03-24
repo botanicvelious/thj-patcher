@@ -94,6 +94,7 @@ namespace THJPatcher
                     "Feeding the server hamsters...",
                     "Bribing the RNG gods...",
                     "Aporia is watching you.....",
+                    "Standby.....building a gazebo....."
                     "Gnomes are not snacks, stop asking...",
                     "Buffing in the Plane of Water… just kidding, no one goes there...",
                     "Undercutting your trader by 1 copper...",
@@ -102,6 +103,7 @@ namespace THJPatcher
                     "Adding more duct tape to the database—should be fine...",
                     "Server hamster demands a raise, Aporia Refused...",
                     "'Balancing' pet builds...",
+            
                     "I Pity the Fool...",
                     "You will not evade me.....",
                     "You have ruined your own lands..... you will not ruin mine!....",
@@ -180,30 +182,28 @@ namespace THJPatcher
             // Add KeyDown event handler for Enter key
             this.KeyDown += MainWindow_KeyDown;
 
-            // Check for administrator privileges
-            if (!IsAdministrator())
-            {
-                MessageBox.Show("This application requires administrator privileges to run properly. Please run as administrator.", 
-                    "Administrator Privileges Required", 
-                    MessageBoxButton.OK, 
-                    MessageBoxImage.Warning);
-                Environment.Exit(1);
-            }
-
             // Parse command line arguments
             var args = Environment.GetCommandLineArgs();
             foreach (var arg in args)
             {
-                switch (arg.ToLower())
+                var lowerArg = arg.ToLower();
+                switch (lowerArg)
                 {
                     case "--silent":
+                    case "-silent":
                         isSilentMode = true;
                         break;
                     case "--confirm":
+                    case "-confirm":
                         isAutoConfirm = true;
                         break;
                     case "--debug":
+                    case "-debug":
                         isDebugMode = true;
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log("[DEBUG] Debug mode enabled");
+                        }
                         break;
                 }
             }
@@ -854,12 +854,18 @@ namespace THJPatcher
             {
                 StatusLibrary.Log($"[DEBUG] Current filelist version: {filelist.version}");
                 StatusLibrary.Log($"[DEBUG] Last patched version: {IniLibrary.instance.LastPatchedVersion}");
+                StatusLibrary.Log($"[DEBUG] Version comparison: {filelist.version} == {IniLibrary.instance.LastPatchedVersion}");
+                StatusLibrary.Log($"[DEBUG] Config file path: {Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "thjpatcher.yml")}");
             }
 
             if (filelist.version != IniLibrary.instance.LastPatchedVersion)
             {
                 if (!isPendingPatch)
                 {
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Version mismatch detected - showing update button");
+                    }
                     Dispatcher.Invoke(() =>
                     {
                         StatusLibrary.Log("Update available! Click PATCH to begin.");
@@ -876,6 +882,10 @@ namespace THJPatcher
             }
             else
             {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log("[DEBUG] Versions match - no update needed");
+                }
                 StatusLibrary.Log("Up to date - no update needed");
             }
 
