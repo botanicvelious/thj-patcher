@@ -180,6 +180,16 @@ namespace THJPatcher
             // Add KeyDown event handler for Enter key
             this.KeyDown += MainWindow_KeyDown;
 
+            // Check for administrator privileges
+            if (!IsAdministrator())
+            {
+                MessageBox.Show("This application requires administrator privileges to run properly. Please run as administrator.", 
+                    "Administrator Privileges Required", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Warning);
+                Environment.Exit(1);
+            }
+
             // Parse command line arguments
             var args = Environment.GetCommandLineArgs();
             foreach (var arg in args)
@@ -247,6 +257,13 @@ namespace THJPatcher
             if (!patcherUrl.EndsWith("/")) patcherUrl += "/";
 
             buildClientVersions();
+        }
+
+        private bool IsAdministrator()
+        {
+            var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var principal = new System.Security.Principal.WindowsPrincipal(identity);
+            return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
         }
 
         private void buildClientVersions()
