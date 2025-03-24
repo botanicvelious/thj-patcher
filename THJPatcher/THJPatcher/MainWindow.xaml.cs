@@ -668,6 +668,11 @@ namespace THJPatcher
                     return;
                 }
 
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log("[DEBUG] Checking server status...");
+                }
+
                 using (var client = new HttpClient())
                 {
                     client.DefaultRequestHeaders.Add("x-patcher-token", token);
@@ -675,6 +680,11 @@ namespace THJPatcher
                     // Check server status
                     var response = await client.GetStringAsync("http://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/serverstatus");
                     var status = JsonSerializer.Deserialize<ServerStatus>(response);
+                    
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Server status response: {response}");
+                    }
                     
                     if (status?.Found == true && status.Server != null)
                     {
@@ -688,8 +698,17 @@ namespace THJPatcher
                     }
 
                     // Check exp bonus
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Checking exp bonus...");
+                    }
                     var expResponse = await client.GetStringAsync("http://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/expbonus");
                     var expStatus = JsonSerializer.Deserialize<ExpBonusStatus>(expResponse);
+                    
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Exp bonus response: {expResponse}");
+                    }
                     
                     if (expStatus?.Status == "success" && expStatus.Found)
                     {
@@ -710,8 +729,12 @@ namespace THJPatcher
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Server status check error: {ex.Message}");
+                }
                 // Silently fail - we don't want to show errors for this
             }
         }
@@ -787,6 +810,10 @@ namespace THJPatcher
             // Now check if game files need updating by comparing filelist version
             string suffix = "rof";
             string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
+            if (isDebugMode)
+            {
+                StatusLibrary.Log($"[DEBUG] Checking filelist from URL: {webUrl}");
+            }
             string filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
             if (filelistResponse != "")
             {
@@ -804,6 +831,12 @@ namespace THJPatcher
                     .WithNamingConvention(CamelCaseNamingConvention.Instance)
                     .Build();
                 filelist = deserializerBuilder.Deserialize<FileList>(input);
+            }
+
+            if (isDebugMode)
+            {
+                StatusLibrary.Log($"[DEBUG] Current filelist version: {filelist.version}");
+                StatusLibrary.Log($"[DEBUG] Last patched version: {IniLibrary.instance.LastPatchedVersion}");
             }
 
             if (filelist.version != IniLibrary.instance.LastPatchedVersion)
