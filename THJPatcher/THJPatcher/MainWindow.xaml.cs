@@ -858,13 +858,34 @@ namespace THJPatcher
                 StatusLibrary.Log($"[DEBUG] Config file path: {Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "thjpatcher.yml")}");
             }
 
-            if (filelist.version != IniLibrary.instance.LastPatchedVersion)
+            // If all files are intact and LastPatchedVersion is empty, set it to current version
+            if (allFilesIntact && string.IsNullOrEmpty(IniLibrary.instance.LastPatchedVersion))
+            {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log("[DEBUG] All files intact but LastPatchedVersion is empty - setting to current version");
+                }
+                IniLibrary.instance.LastPatchedVersion = filelist.version;
+                await Task.Run(() => IniLibrary.Save());
+                StatusLibrary.Log("Up to date - no update needed");
+                
+                // Show the play button since everything is up to date
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Visibility = Visibility.Collapsed;
+                    btnPlay.Visibility = Visibility.Visible;
+                });
+                return;
+            }
+
+            // Only show update button if versions don't match or files are not intact
+            if (filelist.version != IniLibrary.instance.LastPatchedVersion || !allFilesIntact)
             {
                 if (!isPendingPatch)
                 {
                     if (isDebugMode)
                     {
-                        StatusLibrary.Log("[DEBUG] Version mismatch detected - showing update button");
+                        StatusLibrary.Log("[DEBUG] Version mismatch or files not intact - showing update button");
                     }
                     Dispatcher.Invoke(() =>
                     {
@@ -884,9 +905,16 @@ namespace THJPatcher
             {
                 if (isDebugMode)
                 {
-                    StatusLibrary.Log("[DEBUG] Versions match - no update needed");
+                    StatusLibrary.Log("[DEBUG] Versions match and files intact - no update needed");
                 }
                 StatusLibrary.Log("Up to date - no update needed");
+                
+                // Show the play button since everything is up to date
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Visibility = Visibility.Collapsed;
+                    btnPlay.Visibility = Visibility.Visible;
+                });
             }
 
             await Task.Delay(1000); // Pause before integrity check
