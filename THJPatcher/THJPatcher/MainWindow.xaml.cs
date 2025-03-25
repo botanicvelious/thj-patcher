@@ -858,6 +858,65 @@ namespace THJPatcher
                 StatusLibrary.Log($"[DEBUG] Config file path: {Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "thjpatcher.yml")}");
             }
 
+            // Perform file integrity check first
+            StatusLibrary.Log("Performing file integrity check...");
+            txtProgress.Visibility = Visibility.Visible;
+            progressBar.Value = 0;
+            bool allFilesIntact = true;
+            List<FileEntry> missingOrModifiedFiles = new List<FileEntry>();
+
+            int totalFiles = filelist.downloads.Count;
+            int checkedFiles = 0;
+
+            foreach (var entry in filelist.downloads)
+            {
+                checkedFiles++;
+                // Update progress bar (0-100 range)
+                int progress = (int)((double)checkedFiles / totalFiles * 100);
+                Dispatcher.Invoke(() =>
+                {
+                    progressBar.Value = progress;
+                    txtProgress.Text = $"Checking files: {progress}%";
+                });
+
+                // Skip heroesjourneyemu.exe as it's the patcher itself
+                if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
+                {
+                    StatusLibrary.Log($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
+                    continue;
+                }
+
+                if (!await Task.Run(() => File.Exists(path)))
+                {
+                    StatusLibrary.Log($"Missing file detected: {entry.name}");
+                    missingOrModifiedFiles.Add(entry);
+                    allFilesIntact = false;
+                }
+                else
+                {
+                    var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                    if (md5.ToUpper() != entry.md5.ToUpper())
+                    {
+                        StatusLibrary.Log($"Modified file detected: {entry.name}");
+                        missingOrModifiedFiles.Add(entry);
+                        allFilesIntact = false;
+                    }
+                }
+            }
+
+            // Hide progress bar after check
+            Dispatcher.Invoke(() =>
+            {
+                txtProgress.Visibility = Visibility.Collapsed;
+                progressBar.Value = 0;
+            });
+
             // If all files are intact and LastPatchedVersion is empty, set it to current version
             if (allFilesIntact && string.IsNullOrEmpty(IniLibrary.instance.LastPatchedVersion))
             {
@@ -916,91 +975,6 @@ namespace THJPatcher
                     btnPlay.Visibility = Visibility.Visible;
                 });
             }
-
-            await Task.Delay(1000); // Pause before integrity check
-
-            // Perform file integrity check
-            StatusLibrary.Log("Performing file integrity check...");
-            txtProgress.Visibility = Visibility.Visible;
-            progressBar.Value = 0;
-            List<FileEntry> missingOrModifiedFiles = new List<FileEntry>();
-
-            int totalFiles = filelist.downloads.Count;
-            int checkedFiles = 0;
-
-            foreach (var entry in filelist.downloads)
-            {
-                checkedFiles++;
-                // Update progress bar (0-100 range)
-                int progress = (int)((double)checkedFiles / totalFiles * 100);
-                Dispatcher.Invoke(() =>
-                {
-                    progressBar.Value = progress;
-                    txtProgress.Text = $"Checking files: {progress}%";
-                });
-
-                // Skip heroesjourneyemu.exe as it's the patcher itself
-                if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
-                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
-                {
-                    StatusLibrary.Log($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
-                    continue;
-                }
-
-                if (!await Task.Run(() => File.Exists(path)))
-                {
-                    StatusLibrary.Log($"Missing file detected: {entry.name}");
-                    missingOrModifiedFiles.Add(entry);
-                }
-                else
-                {
-                    var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
-                    if (md5.ToUpper() != entry.md5.ToUpper())
-                    {
-                        StatusLibrary.Log($"Modified file detected: {entry.name}");
-                        missingOrModifiedFiles.Add(entry);
-                    }
-                }
-            }
-
-            // Hide progress bar after check
-            Dispatcher.Invoke(() =>
-            {
-                txtProgress.Visibility = Visibility.Collapsed;
-                progressBar.Value = 0;
-            });
-
-            if (missingOrModifiedFiles.Count > 0)
-            {
-                StatusLibrary.Log($"Found {missingOrModifiedFiles.Count} files that need to be updated.");
-                Dispatcher.Invoke(() =>
-                {
-                    StatusLibrary.Log("Update needed! Click PATCH to begin.");
-                    btnPatch.Visibility = Visibility.Visible;
-                    btnPlay.Visibility = Visibility.Collapsed;
-                });
-                // In silent mode, automatically start patching
-                if (isSilentMode && isAutoConfirm)
-                {
-                    await StartPatch();
-                }
-                return;
-            }
-
-            // If we get here, no updates are needed and all files are intact
-            await Task.Delay(1000); 
-
-            Dispatcher.Invoke(() =>
-            {
-                StatusLibrary.Log("Ready to play!");
-                btnPatch.Visibility = Visibility.Collapsed;
-                btnPlay.Visibility = Visibility.Visible;
-            });
 
             // In silent mode, automatically start the game
             if (isSilentMode && isAutoConfirm)
