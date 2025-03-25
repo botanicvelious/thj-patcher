@@ -858,13 +858,58 @@ namespace THJPatcher
                 StatusLibrary.Log($"[DEBUG] Config file path: {Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "thjpatcher.yml")}");
             }
 
-            if (filelist.version != IniLibrary.instance.LastPatchedVersion)
+            // First check file integrity
+            bool allFilesIntact = true;
+            foreach (var entry in filelist.downloads)
+            {
+                // Skip heroesjourneyemu.exe as it's the patcher itself
+                if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
+                {
+                    StatusLibrary.Log($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
+                    continue;
+                }
+
+                if (!await Task.Run(() => File.Exists(path)))
+                {
+                    allFilesIntact = false;
+                    break;
+                }
+
+                var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                if (md5.ToUpper() != entry.md5.ToUpper())
+                {
+                    allFilesIntact = false;
+                    break;
+                }
+            }
+
+            // If all files are intact and LastPatchedVersion is empty, set it to current version
+            if (allFilesIntact && string.IsNullOrEmpty(IniLibrary.instance.LastPatchedVersion))
+            {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log("[DEBUG] All files intact but LastPatchedVersion is empty - setting to current version");
+                }
+                IniLibrary.instance.LastPatchedVersion = filelist.version;
+                await Task.Run(() => IniLibrary.Save());
+                StatusLibrary.Log("Up to date - no update needed");
+                return;
+            }
+
+            // Only show update button if versions don't match or files are not intact
+            if (filelist.version != IniLibrary.instance.LastPatchedVersion || !allFilesIntact)
             {
                 if (!isPendingPatch)
                 {
                     if (isDebugMode)
                     {
-                        StatusLibrary.Log("[DEBUG] Version mismatch detected - showing update button");
+                        StatusLibrary.Log("[DEBUG] Version mismatch or files not intact - showing update button");
                     }
                     Dispatcher.Invoke(() =>
                     {
@@ -884,7 +929,7 @@ namespace THJPatcher
             {
                 if (isDebugMode)
                 {
-                    StatusLibrary.Log("[DEBUG] Versions match - no update needed");
+                    StatusLibrary.Log("[DEBUG] Versions match and files intact - no update needed");
                 }
                 StatusLibrary.Log("Up to date - no update needed");
             }
