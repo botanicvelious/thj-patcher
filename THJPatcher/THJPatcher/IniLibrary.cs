@@ -21,6 +21,8 @@ namespace THJPatcher
         public string PatcherUrl { get; set; }
         public string FileName { get; set; }
         public string Version { get; set; }
+        public string LastIntegrityCheck { get; set; }  // ISO 8601 timestamp
+        public string QuickCheckStatus { get; set; }    // success/failed
 
         private static string GetConfigPath()
         {
@@ -139,6 +141,8 @@ namespace THJPatcher
             instance.FileName = "";
             instance.Version = "1.1.0";
             instance.LastPatchedVersion = "";
+            instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
+            instance.QuickCheckStatus = "success";
         }
 
         public static string GetLatestMessageId()
