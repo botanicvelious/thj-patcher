@@ -1070,6 +1070,8 @@ namespace THJPatcher
                         btnPlay.Visibility = Visibility.Visible;
                     });
                 }
+                // Skip second changelog check for quick checks
+                return;
             }
 
             // Check for and show changelog if needed
