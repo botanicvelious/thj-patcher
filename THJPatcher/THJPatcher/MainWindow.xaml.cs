@@ -23,6 +23,7 @@ using System.Text.Json.Serialization;
 using System.Windows.Data;
 using System.Globalization;
 using System.Reflection;
+using System.Text;
 
 namespace THJPatcher
 {
@@ -160,7 +161,7 @@ namespace THJPatcher
 
         private List<ChangelogInfo> changelogs = new List<ChangelogInfo>();
         private string changelogContent = "";
-        private readonly string changelogEndpoint = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/patcher/latest";
+        private readonly string changelogEndpoint = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/changelog/{0}";
         private readonly string allChangelogsEndpoint = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/changelog?all=true";
         private readonly string patcherToken;
         private bool hasNewChangelogs = false;
@@ -758,16 +759,28 @@ namespace THJPatcher
             StatusLibrary.Log("Checking for updates...");
             await Task.Delay(2000);
 
+            // Check for and show changelog if needed
+            await CheckChangelogAsync();
+            if (changelogs.Any() && hasNewChangelogs && !isSilentMode)
+            {
+                StatusLibrary.Log("Showing changelog window");
+                bool acknowledged = ShowChangelogs();
+
+                // Only proceed if the user acknowledged the changelog or we're in auto-confirm mode
+                if (!acknowledged && !isAutoConfirm)
+                {
+                    return;
+                }
+            }
+
             // Show latest changelog window if we have changelogs AND they're new AND not in silent mode
             if (changelogs.Any() && hasNewChangelogs && !isSilentMode)
             {
-                StatusLibrary.Log("Showing latest changelog window");
-                var latestChangelog = changelogs.OrderByDescending(x => x.Timestamp).First();
-                var latestChangelogWindow = new LatestChangelogWindow(latestChangelog);
-                latestChangelogWindow.ShowDialog();
+                StatusLibrary.Log("Showing changelog window");
+                bool acknowledged = ShowChangelogs();
 
                 // Only proceed if the user acknowledged the changelog or we're in auto-confirm mode
-                if (!latestChangelogWindow.IsAcknowledged && !isAutoConfirm)
+                if (!acknowledged && !isAutoConfirm)
                 {
                     return;
                 }
@@ -1054,13 +1067,11 @@ namespace THJPatcher
             await CheckChangelogAsync();
             if (changelogs.Any() && hasNewChangelogs && !isSilentMode)
             {
-                StatusLibrary.Log("Showing latest changelog window");
-                var latestChangelog = changelogs.OrderByDescending(x => x.Timestamp).First();
-                var latestChangelogWindow = new LatestChangelogWindow(latestChangelog);
-                latestChangelogWindow.ShowDialog();
+                StatusLibrary.Log("Showing changelog window");
+                bool acknowledged = ShowChangelogs();
 
                 // Only proceed if the user acknowledged the changelog or we're in auto-confirm mode
-                if (!latestChangelogWindow.IsAcknowledged && !isAutoConfirm)
+                if (!acknowledged && !isAutoConfirm)
                 {
                     return;
                 }
@@ -1774,7 +1785,7 @@ namespace THJPatcher
                         client.DefaultRequestHeaders.Add("x-patcher-token", token);
                         try
                         {
-                            var httpResponse = await client.GetAsync(changelogEndpoint);
+                            var httpResponse = await client.GetAsync(string.Format(changelogEndpoint, currentMessageId));
                             
                             if (httpResponse.StatusCode == System.Net.HttpStatusCode.Forbidden)
                             {
@@ -1797,8 +1808,8 @@ namespace THJPatcher
                                 return;
                             }
 
-                            var latestResponse = await httpResponse.Content.ReadAsStringAsync();
-                            if (!string.IsNullOrEmpty(latestResponse))
+                            var response = await httpResponse.Content.ReadAsStringAsync();
+                            if (!string.IsNullOrEmpty(response))
                             {
                                 var options = new JsonSerializerOptions
                                 {
@@ -1806,31 +1817,31 @@ namespace THJPatcher
                                     AllowTrailingCommas = true
                                 };
 
-                                var changelogData = JsonSerializer.Deserialize<ChangelogData>(latestResponse, options);
-                                if (changelogData?.Found == true && changelogData.Changelog != null)
+                                var changelogResponse = JsonSerializer.Deserialize<ChangelogResponse>(response, options);
+                                if (changelogResponse?.Changelogs != null && changelogResponse.Changelogs.Count > 0)
                                 {
-                                    if (changelogData.Changelog.Message_Id != currentMessageId)
+                                    // Load existing entries
+                                    var entries = IniLibrary.LoadChangelog();
+                                    
+                                    // Add new entries at the beginning in reverse order (to maintain chronological order)
+                                    foreach (var changelog in changelogResponse.Changelogs.OrderByDescending(c => c.Timestamp))
                                     {
-                                        // Load existing entries
-                                        var entries = IniLibrary.LoadChangelog();
-                                        
-                                        // Add new entry at the beginning
                                         entries.Insert(0, new Dictionary<string, string>
                                         {
-                                            ["raw_content"] = changelogData.Changelog.Raw_Content,
-                                            ["formatted_content"] = changelogData.Changelog.Formatted_Content,
-                                            ["author"] = changelogData.Changelog.Author,
-                                            ["timestamp"] = changelogData.Changelog.Timestamp.ToString("O"),
-                                            ["message_id"] = changelogData.Changelog.Message_Id
+                                            ["raw_content"] = changelog.Raw_Content,
+                                            ["formatted_content"] = changelog.Formatted_Content,
+                                            ["author"] = changelog.Author,
+                                            ["timestamp"] = changelog.Timestamp.ToString("O"),
+                                            ["message_id"] = changelog.Message_Id
                                         });
-
-                                        // Save updated changelog
-                                        IniLibrary.SaveChangelog(entries);
-                                        
-                                        // Update changelogs list and set flag
-                                        changelogs.Insert(0, changelogData.Changelog);
-                                        hasNewChangelogs = true;
                                     }
+
+                                    // Save updated changelog
+                                    IniLibrary.SaveChangelog(entries);
+                                    
+                                    // Update changelogs list and set flag
+                                    changelogs.InsertRange(0, changelogResponse.Changelogs);
+                                    hasNewChangelogs = true;
                                 }
                             }
                         }
@@ -2038,6 +2049,25 @@ namespace THJPatcher
                     BtnPlay_Click(null, null);
                 }
             }
+        }
+
+        private bool ShowChangelogs()
+        {
+            if (hasNewChangelogs && !isSilentMode)
+            {
+                // Build combined changelog content
+                var combinedContent = new StringBuilder();
+                foreach (var changelog in changelogs)
+                {
+                    combinedContent.AppendLine(changelog.Formatted_Content);
+                }
+
+                var dialog = new ChangelogWindow(combinedContent.ToString());
+                dialog.ShowDialog();
+                hasNewChangelogs = false;
+                return dialog.IsAcknowledged;
+            }
+            return true;
         }
     }
 }

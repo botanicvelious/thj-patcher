@@ -19,10 +19,13 @@ namespace THJPatcher
 
     public partial class ChangelogWindow : Window
     {
+        public bool IsAcknowledged { get; private set; }
+
         public ChangelogWindow(string changelogContent)
         {
             InitializeComponent();
             Owner = System.Windows.Application.Current.MainWindow;
+            IsAcknowledged = false;
 
             // Split content into lines and remove empty ones
             var lines = changelogContent
@@ -122,6 +125,7 @@ namespace THJPatcher
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
+            IsAcknowledged = true;
             Close();
         }
     }
