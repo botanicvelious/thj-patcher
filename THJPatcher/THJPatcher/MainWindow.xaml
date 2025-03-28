@@ -331,7 +331,7 @@
         </StackPanel>
 
         <!-- Main Content -->
-        <Grid Grid.Row="2" Margin="310,-60,16,20">
+        <Grid Grid.Row="2" Margin="280,-60,16,20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>

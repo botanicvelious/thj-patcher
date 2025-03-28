@@ -104,7 +104,6 @@ namespace THJPatcher
                     "Adding more duct tape to the database—should be fine...",
                     "Server hamster demands a raise, Aporia Refused...",
                     "'Balancing' pet builds...",
-            
                     "I Pity the Fool...",
                     "You will not evade me.....",
                     "You have ruined your own lands..... you will not ruin mine!....",
@@ -1014,12 +1013,19 @@ namespace THJPatcher
                     await Task.Run(() => IniLibrary.Save());
                     StatusLibrary.Log("Up to date - no update needed");
                     
-                    // Show the play button since everything is up to date
-                    Dispatcher.Invoke(() =>
+                    // Only show the play button if there's no self-update pending
+                    if (!isNeedingSelfUpdate)
                     {
-                        btnPatch.Visibility = Visibility.Collapsed;
-                        btnPlay.Visibility = Visibility.Visible;
-                    });
+                        Dispatcher.Invoke(() =>
+                        {
+                            btnPatch.Visibility = Visibility.Collapsed;
+                            btnPlay.Visibility = Visibility.Visible;
+                        });
+                    }
+                    else if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Quick check passed but self-update is pending - keeping patch button visible");
+                    }
                     return;
                 }
 
@@ -1055,12 +1061,15 @@ namespace THJPatcher
                 }
                 StatusLibrary.Log("Quick check complete.");
                 
-                // Show the play button since everything is up to date
-                Dispatcher.Invoke(() =>
+                // Only show the play button if there's no self-update pending
+                if (!isNeedingSelfUpdate)
                 {
-                    btnPatch.Visibility = Visibility.Collapsed;
-                    btnPlay.Visibility = Visibility.Visible;
-                });
+                    Dispatcher.Invoke(() =>
+                    {
+                        btnPatch.Visibility = Visibility.Collapsed;
+                        btnPlay.Visibility = Visibility.Visible;
+                    });
+                }
             }
 
             // Check for and show changelog if needed
@@ -1754,7 +1763,14 @@ namespace THJPatcher
 
         private void ChangelogButton_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new ChangelogWindow(changelogContent);
+            // When clicking the changelog button, show all changelogs
+            var combinedContent = new StringBuilder();
+            foreach (var changelog in changelogs)
+            {
+                combinedContent.AppendLine(changelog.Formatted_Content);
+            }
+
+            var dialog = new ChangelogWindow(combinedContent.ToString());
             dialog.ShowDialog();
         }
 
@@ -2055,9 +2071,13 @@ namespace THJPatcher
         {
             if (hasNewChangelogs && !isSilentMode)
             {
-                // Build combined changelog content
+                // Get only the new changelogs (they are at the start of the list since we insert at index 0)
+                var newChangelogCount = changelogs.TakeWhile(c => !IniLibrary.GetLatestMessageId().Equals(c.Message_Id)).Count();
+                if (newChangelogCount == 0) newChangelogCount = 1; // Show at least the latest if no previous message ID
+
+                // Build combined changelog content from new changelogs only
                 var combinedContent = new StringBuilder();
-                foreach (var changelog in changelogs)
+                foreach (var changelog in changelogs.Take(newChangelogCount))
                 {
                     combinedContent.AppendLine(changelog.Formatted_Content);
                 }
