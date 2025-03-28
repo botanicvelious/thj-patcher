@@ -1803,6 +1803,13 @@ namespace THJPatcher
                         {
                             var httpResponse = await client.GetAsync(string.Format(changelogEndpoint, currentMessageId));
                             
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Changelog API Status Code: {httpResponse.StatusCode}");
+                                var debugResponse = await httpResponse.Content.ReadAsStringAsync();
+                                StatusLibrary.Log($"[DEBUG] Changelog API Response: {debugResponse}");
+                            }
+                            
                             if (httpResponse.StatusCode == System.Net.HttpStatusCode.Forbidden)
                             {
                                 StatusLibrary.Log("[ERROR] Authentication failed with changelog API");
