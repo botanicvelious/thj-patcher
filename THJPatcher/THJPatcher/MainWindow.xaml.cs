@@ -1712,19 +1712,6 @@ namespace THJPatcher
                         }
                     }
                 }
-                else
-                {
-                    StatusLibrary.Log("[Error] No entries found in changelog file, using default entry");
-                    // Fallback to default changelog if no yml file exists
-                    changelogs.Add(new ChangelogInfo
-                    {
-                        Timestamp = DateTime.Now,
-                        Author = "System",
-                        Formatted_Content = "Welcome to The Heroes' Journey!\n\nNo changelog entries have been loaded yet. Please check back later.",
-                        Raw_Content = "Welcome to The Heroes' Journey!\n\nNo changelog entries have been loaded yet. Please check back later.",
-                        Message_Id = "default"
-                    });
-                }
 
                 // Format all changelogs
                 FormatAllChangelogs();
@@ -1797,13 +1784,20 @@ namespace THJPatcher
                     // Get the latest message_id from yml
                     string currentMessageId = IniLibrary.GetLatestMessageId();
 
+                    // If message ID is empty or default, treat it as if the file doesn't exist
+                    if (string.IsNullOrEmpty(currentMessageId) || currentMessageId == "default")
+                    {
+                        File.Delete(changelogPath); // Delete the invalid file
+                        goto FetchAllChangelogs;
+                    }
+
                     // Check for new changelog
                     using (var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true }))
                     {
                         client.DefaultRequestHeaders.Add("x-patcher-token", token);
                         try
                         {
-                            // If we have a changelog.yml, always use the incremental endpoint
+                            // If we have a changelog.yml with valid message ID, use the incremental endpoint
                             var endpoint = string.Format(changelogEndpoint, currentMessageId);
 
                             if (isDebugMode)
@@ -1888,7 +1882,8 @@ namespace THJPatcher
                     return;
                 }
 
-                // If we get here, no yml exists - fetch all changelogs
+                FetchAllChangelogs:
+                // If we get here, no yml exists or it was invalid - fetch all changelogs
                 using (var client = new HttpClient())
                 {
                     client.DefaultRequestHeaders.Add("x-patcher-token", token);
