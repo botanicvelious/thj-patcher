@@ -1798,16 +1798,22 @@ namespace THJPatcher
                     string currentMessageId = IniLibrary.GetLatestMessageId();
 
                     // Check for new changelog
-                    using (var client = new HttpClient())
+                    using (var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true }))
                     {
                         client.DefaultRequestHeaders.Add("x-patcher-token", token);
                         try
                         {
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Requesting changelog from: {string.Format(changelogEndpoint, currentMessageId)}");
+                            }
+
                             var httpResponse = await client.GetAsync(string.Format(changelogEndpoint, currentMessageId));
                             
                             if (isDebugMode)
                             {
                                 StatusLibrary.Log($"[DEBUG] Changelog API Status Code: {httpResponse.StatusCode}");
+                                StatusLibrary.Log($"[DEBUG] Changelog API Headers: {string.Join(", ", httpResponse.Headers.Select(h => $"{h.Key}: {string.Join("; ", h.Value)}"))}");
                                 var debugResponse = await httpResponse.Content.ReadAsStringAsync();
                                 StatusLibrary.Log($"[DEBUG] Changelog API Response: {debugResponse}");
                             }
