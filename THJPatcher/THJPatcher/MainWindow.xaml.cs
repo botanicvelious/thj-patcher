@@ -1803,12 +1803,26 @@ namespace THJPatcher
                         client.DefaultRequestHeaders.Add("x-patcher-token", token);
                         try
                         {
-                            if (isDebugMode)
+                            string endpoint;
+                            if (string.IsNullOrEmpty(currentMessageId))
                             {
-                                StatusLibrary.Log($"[DEBUG] Requesting changelog from: {string.Format(changelogEndpoint, currentMessageId)}");
+                                endpoint = allChangelogsEndpoint;
+                                if (isDebugMode)
+                                {
+                                    StatusLibrary.Log($"[DEBUG] No previous message ID found, using all changelogs endpoint");
+                                }
+                            }
+                            else
+                            {
+                                endpoint = string.Format(changelogEndpoint, currentMessageId);
                             }
 
-                            var httpResponse = await client.GetAsync(string.Format(changelogEndpoint, currentMessageId));
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Requesting changelog from: {endpoint}");
+                            }
+
+                            var httpResponse = await client.GetAsync(endpoint);
                             
                             if (isDebugMode)
                             {
