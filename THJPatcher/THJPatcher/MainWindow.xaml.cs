@@ -887,7 +887,10 @@ namespace THJPatcher
 
                 if (!await Task.Run(() => File.Exists(path)))
                 {
-                    StatusLibrary.Log($"Missing file detected: {entry.name}");
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Missing file detected: {entry.name}");
+                    }
                     missingOrModifiedFiles.Add(entry);
                     quickCheckPassed = false;
                 }
@@ -896,7 +899,10 @@ namespace THJPatcher
                     var fileInfo = await Task.Run(() => new FileInfo(path));
                     if (fileInfo.Length != entry.size)
                     {
-                        StatusLibrary.Log($"File size mismatch detected: {entry.name}");
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] File size mismatch detected: {entry.name}");
+                        }
                         missingOrModifiedFiles.Add(entry);
                         quickCheckPassed = false;
                     }
@@ -910,6 +916,29 @@ namespace THJPatcher
                 progressBar.Value = 0;
             });
 
+            // If quick check passed and versions are close (within 2 days), skip full check
+            bool skipFullCheck = false;
+            if (quickCheckPassed)
+            {
+                // Parse the hex timestamps from the versions (first 8 characters)
+                if (filelist.version.Length >= 8 && IniLibrary.instance.LastPatchedVersion.Length >= 8)
+                {
+                    string currentVersionDate = filelist.version.Substring(0, 8);
+                    string lastVersionDate = IniLibrary.instance.LastPatchedVersion.Substring(0, 8);
+                    if (currentVersionDate == lastVersionDate)
+                    {
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Version dates match ({currentVersionDate}), skipping full check");
+                        }
+                        skipFullCheck = true;
+                        // Update LastPatchedVersion to match current version
+                        IniLibrary.instance.LastPatchedVersion = filelist.version;
+                        await Task.Run(() => IniLibrary.Save());
+                    }
+                }
+            }
+
             // Determine if we need to do a full MD5 check
             bool needsFullCheck = false;
             DateTime lastCheck = DateTime.UtcNow;
@@ -919,9 +948,9 @@ namespace THJPatcher
             }
 
             // Check if we need a full integrity check
-            if (!quickCheckPassed || 
+            if (!skipFullCheck && (!quickCheckPassed || 
                 filelist.version != IniLibrary.instance.LastPatchedVersion ||
-                (DateTime.UtcNow - lastCheck).TotalHours >= 24)
+                (DateTime.UtcNow - lastCheck).TotalHours >= 24))
             {
                 needsFullCheck = true;
                 if (isDebugMode)
@@ -930,141 +959,15 @@ namespace THJPatcher
                 }
             }
 
-            // If we need a full check, do it now
-            if (needsFullCheck)
-            {
-                StatusLibrary.Log("Performing full file integrity check...");
-                txtProgress.Visibility = Visibility.Visible;
-                progressBar.Value = 0;
-                bool allFilesIntact = true;
-                checkedFiles = 0;
-
-                foreach (var entry in filelist.downloads)
-                {
-                    checkedFiles++;
-                    int progress = (int)((double)checkedFiles / totalFiles * 100);
-                    Dispatcher.Invoke(() =>
-                    {
-                        progressBar.Value = progress;
-                        txtProgress.Text = $"Checking files: {progress}%";
-                    });
-
-                    if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
-                    if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
-                    {
-                        continue;
-                    }
-
-                    if (!await Task.Run(() => File.Exists(path)))
-                    {
-                        StatusLibrary.Log($"Missing file detected: {entry.name}");
-                        missingOrModifiedFiles.Add(entry);
-                        allFilesIntact = false;
-                    }
-                    else
-                    {
-                        var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
-                        if (md5.ToUpper() != entry.md5.ToUpper())
-                        {
-                            StatusLibrary.Log($"Modified file detected: {entry.name}");
-                            missingOrModifiedFiles.Add(entry);
-                            allFilesIntact = false;
-                        }
-                    }
-                }
-
-                // Update integrity check timestamp and status
-                IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
-                IniLibrary.instance.QuickCheckStatus = allFilesIntact ? "success" : "failed";
-                await Task.Run(() => IniLibrary.Save());
-
-                // Hide progress bar after full check
-                Dispatcher.Invoke(() =>
-                {
-                    txtProgress.Visibility = Visibility.Collapsed;
-                    progressBar.Value = 0;
-                });
-
-                // If all files are intact and LastPatchedVersion is empty, set it to current version
-                if (allFilesIntact)
-                {
-                    if (string.IsNullOrEmpty(IniLibrary.instance.LastPatchedVersion))
-                    {
-                        if (isDebugMode)
-                        {
-                            StatusLibrary.Log("[DEBUG] All files intact but LastPatchedVersion is empty - setting to current version");
-                        }
-                        IniLibrary.instance.LastPatchedVersion = filelist.version;
-                        await Task.Run(() => IniLibrary.Save());
-                        StatusLibrary.Log("Up to date - no update needed");
-                        
-                        // Show the play button since everything is up to date
-                        Dispatcher.Invoke(() =>
-                        {
-                            btnPatch.Visibility = Visibility.Collapsed;
-                            btnPlay.Visibility = Visibility.Visible;
-                        });
-                        return;
-                    }
-                    else if (filelist.version == IniLibrary.instance.LastPatchedVersion)
-                    {
-                        // Files are intact and versions match
-                        StatusLibrary.Log("Up to date - no update needed");
-                        Dispatcher.Invoke(() =>
-                        {
-                            btnPatch.Visibility = Visibility.Collapsed;
-                            btnPlay.Visibility = Visibility.Visible;
-                        });
-                        return;
-                    }
-                }
-
-                // Only show update button if versions don't match or files are not intact
-                if (!allFilesIntact || filelist.version != IniLibrary.instance.LastPatchedVersion)
-                {
-                    if (!isPendingPatch)
-                    {
-                        if (isDebugMode)
-                        {
-                            StatusLibrary.Log("[DEBUG] Version mismatch or files not intact - showing update button");
-                            StatusLibrary.Log($"[DEBUG] Current version: {IniLibrary.instance.LastPatchedVersion}");
-                            StatusLibrary.Log($"[DEBUG] Filelist version: {filelist.version}");
-                            StatusLibrary.Log($"[DEBUG] Files intact: {allFilesIntact}");
-                        }
-                        Dispatcher.Invoke(() =>
-                        {
-                            StatusLibrary.Log("Update available! Click PATCH to begin.");
-                            btnPatch.Visibility = Visibility.Visible;
-                            btnPlay.Visibility = Visibility.Collapsed;
-                        });
-                        // In silent mode, automatically start patching
-                        if (isSilentMode && isAutoConfirm)
-                        {
-                            await StartPatch();
-                        }
-                        return;
-                    }
-                }
-            }
-            else
+            // If we don't need a full check and quick check passed, we're done
+            if (!needsFullCheck && quickCheckPassed)
             {
                 if (isDebugMode)
                 {
-                    StatusLibrary.Log("[DEBUG] Quick check passed - skipping full integrity check");
+                    StatusLibrary.Log("[DEBUG] Quick check passed and full check not needed - files are up to date");
                 }
-                StatusLibrary.Log("Quick check complete.");
-                
-                // Show the play button since everything is up to date
-                Dispatcher.Invoke(() =>
-                {
-                    btnPatch.Visibility = Visibility.Collapsed;
-                    btnPlay.Visibility = Visibility.Visible;
-                });
+                StatusLibrary.Log("Up to date - no update needed");
+                return;
             }
 
             // Check for and show changelog if needed
