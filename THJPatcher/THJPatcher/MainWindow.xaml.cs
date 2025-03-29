@@ -238,7 +238,7 @@ namespace THJPatcher
 
             fileName = "heroesjourneyemu";
 
-            filelistUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download";
+            filelistUrl = "https://patch.heroesjourneyemu.com/";
             if (string.IsNullOrEmpty(filelistUrl))
             {
                 MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the file list url is not provided or screenshot this message.", serverName);
