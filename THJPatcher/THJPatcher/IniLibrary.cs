@@ -125,9 +125,15 @@ namespace THJPatcher
             string filelistPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "filelist.yml");
             if (!File.Exists(filelistPath))
             {
-                Debug.WriteLine($"[DEBUG] filelist.yml not found, forcing LastPatchedVersion to empty to trigger patch");
-                instance.LastPatchedVersion = "";
-                Save();
+                Debug.WriteLine($"[DEBUG] filelist.yml not found");
+                if (string.IsNullOrEmpty(instance.LastPatchedVersion))
+                {
+                    Debug.WriteLine($"[DEBUG] LastPatchedVersion is empty, keeping it empty to trigger patch");
+                }
+                else
+                {
+                    Debug.WriteLine($"[DEBUG] Keeping existing LastPatchedVersion: {instance.LastPatchedVersion}");
+                }
             }
         }
 

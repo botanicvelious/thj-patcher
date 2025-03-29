@@ -991,33 +991,50 @@ namespace THJPatcher
                 });
 
                 // If all files are intact and LastPatchedVersion is empty, set it to current version
-                if (allFilesIntact && string.IsNullOrEmpty(IniLibrary.instance.LastPatchedVersion))
+                if (allFilesIntact)
                 {
-                    if (isDebugMode)
+                    if (string.IsNullOrEmpty(IniLibrary.instance.LastPatchedVersion))
                     {
-                        StatusLibrary.Log("[DEBUG] All files intact but LastPatchedVersion is empty - setting to current version");
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log("[DEBUG] All files intact but LastPatchedVersion is empty - setting to current version");
+                        }
+                        IniLibrary.instance.LastPatchedVersion = filelist.version;
+                        await Task.Run(() => IniLibrary.Save());
+                        StatusLibrary.Log("Up to date - no update needed");
+                        
+                        // Show the play button since everything is up to date
+                        Dispatcher.Invoke(() =>
+                        {
+                            btnPatch.Visibility = Visibility.Collapsed;
+                            btnPlay.Visibility = Visibility.Visible;
+                        });
+                        return;
                     }
-                    IniLibrary.instance.LastPatchedVersion = filelist.version;
-                    await Task.Run(() => IniLibrary.Save());
-                    StatusLibrary.Log("Up to date - no update needed");
-                    
-                    // Show the play button since everything is up to date
-                    Dispatcher.Invoke(() =>
+                    else if (filelist.version == IniLibrary.instance.LastPatchedVersion)
                     {
-                        btnPatch.Visibility = Visibility.Collapsed;
-                        btnPlay.Visibility = Visibility.Visible;
-                    });
-                    return;
+                        // Files are intact and versions match
+                        StatusLibrary.Log("Up to date - no update needed");
+                        Dispatcher.Invoke(() =>
+                        {
+                            btnPatch.Visibility = Visibility.Collapsed;
+                            btnPlay.Visibility = Visibility.Visible;
+                        });
+                        return;
+                    }
                 }
 
                 // Only show update button if versions don't match or files are not intact
-                if (filelist.version != IniLibrary.instance.LastPatchedVersion || !allFilesIntact)
+                if (!allFilesIntact || filelist.version != IniLibrary.instance.LastPatchedVersion)
                 {
                     if (!isPendingPatch)
                     {
                         if (isDebugMode)
                         {
                             StatusLibrary.Log("[DEBUG] Version mismatch or files not intact - showing update button");
+                            StatusLibrary.Log($"[DEBUG] Current version: {IniLibrary.instance.LastPatchedVersion}");
+                            StatusLibrary.Log($"[DEBUG] Filelist version: {filelist.version}");
+                            StatusLibrary.Log($"[DEBUG] Files intact: {allFilesIntact}");
                         }
                         Dispatcher.Invoke(() =>
                         {
@@ -1484,9 +1501,6 @@ namespace THJPatcher
             StatusLibrary.SetProgress(10000);
             
             // Update LastPatchedVersion and save configuration
-            IniLibrary.instance.LastPatchedVersion = filelist.version;
-            await Task.Run(() => IniLibrary.Save());
-
             if (hasErrors)
             {
                 StatusLibrary.Log("[Error] Patch completed with errors. Some files may not have been updated correctly.");
@@ -1505,6 +1519,8 @@ namespace THJPatcher
                     version = version.Substring(0, 8);
                 }
                 StatusLibrary.Log($"Up to date with patch {version}.");
+                IniLibrary.instance.LastPatchedVersion = filelist.version;
+                await Task.Run(() => IniLibrary.Save());
                 return;
             }
 
