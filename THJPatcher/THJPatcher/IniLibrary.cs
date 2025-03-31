@@ -23,6 +23,7 @@ namespace THJPatcher
         public string Version { get; set; }
         public string LastIntegrityCheck { get; set; }  // ISO 8601 timestamp
         public string QuickCheckStatus { get; set; }    // success/failed
+        public string DeleteChangelog { get; set; }     // true/false
 
         private static string GetConfigPath()
         {
@@ -149,6 +150,7 @@ namespace THJPatcher
             instance.LastPatchedVersion = "";
             instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
             instance.QuickCheckStatus = "success";
+            instance.DeleteChangelog = "false";
         }
 
         public static string GetLatestMessageId()

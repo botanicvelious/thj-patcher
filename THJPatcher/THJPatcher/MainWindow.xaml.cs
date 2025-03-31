@@ -657,8 +657,65 @@ namespace THJPatcher
                 });
             }));
 
+            // Load configuration first
+            IniLibrary.Load();
+
+            // Check if changelog needs to be deleted
+            string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+            string changelogYmlPath = Path.Combine(appPath, "changelog.yml");
+            string changelogMdPath = Path.Combine(appPath, "changelog.md");
+            bool needsReinitialization = false;
+            
+            if (IniLibrary.instance.DeleteChangelog == null || IniLibrary.instance.DeleteChangelog.ToLower() == "true")
+            {
+                if (File.Exists(changelogYmlPath))
+                {
+                    try
+                    {
+                        File.Delete(changelogYmlPath);
+                        StatusLibrary.Log("Deleted existing changelog.yml");
+                        needsReinitialization = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[ERROR] Failed to delete changelog.yml: {ex.Message}");
+                    }
+                }
+
+                if (File.Exists(changelogMdPath))
+                {
+                    try
+                    {
+                        File.Delete(changelogMdPath);
+                        StatusLibrary.Log("Deleted existing changelog.md");
+                        needsReinitialization = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[ERROR] Failed to delete changelog.md: {ex.Message}");
+                    }
+                }
+                
+                // Set DeleteChangelog to false for future runs
+                IniLibrary.instance.DeleteChangelog = "false";
+                IniLibrary.Save();
+
+                // Clear any cached changelog data
+                if (needsReinitialization)
+                {
+                    changelogs.Clear();
+                    changelogContent = "";
+                    cachedChangelogContent = null;
+                    changelogNeedsUpdate = true;
+                    hasNewChangelogs = false;
+                }
+            }
+
             // Check server status
             await CheckServerStatus();
+
+            // Initialize changelogs (this will handle redownloading if files were deleted)
+            InitializeChangelogs();
 
             // Check for new changelogs
             await CheckChangelogAsync();
@@ -673,7 +730,6 @@ namespace THJPatcher
             }
 
             // Load configuration
-            IniLibrary.Load();
             isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
             chkAutoPlay.IsChecked = isAutoPlay;
