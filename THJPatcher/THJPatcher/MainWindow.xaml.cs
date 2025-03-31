@@ -673,7 +673,7 @@ namespace THJPatcher
                     try
                     {
                         File.Delete(changelogYmlPath);
-                        StatusLibrary.Log("Deleted existing changelog.yml");
+                        StatusLibrary.Log("Outdate Changelog file detected...Changeglog will be updated during this patch.");
                         needsReinitialization = true;
                     }
                     catch (Exception ex)
@@ -687,7 +687,6 @@ namespace THJPatcher
                     try
                     {
                         File.Delete(changelogMdPath);
-                        StatusLibrary.Log("Deleted existing changelog.md");
                         needsReinitialization = true;
                     }
                     catch (Exception ex)
@@ -979,16 +978,47 @@ namespace THJPatcher
 
             // Now check if game files need updating by comparing filelist version
             string suffix = "rof";
-            string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
+            string primaryUrl = filelistUrl;
+            string fallbackUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
+            string webUrl = $"{primaryUrl}/filelist_{suffix}.yml";
+            string filelistResponse = "";
+
             if (isDebugMode)
             {
-                StatusLibrary.Log($"[DEBUG] Checking filelist from URL: {webUrl}");
+                StatusLibrary.Log($"[DEBUG] Checking primary filelist from URL: {webUrl}");
             }
-            string filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+
+            // Try primary URL first
+            filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+            
+            // If primary URL fails, try fallback
             if (filelistResponse != "")
             {
-                StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {filelistResponse}");
-                return;
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Primary URL failed, trying fallback URL");
+                }
+                webUrl = $"{fallbackUrl}/filelist_{suffix}.yml";
+                filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+                
+                // If fallback also fails, report error
+                if (filelistResponse != "")
+                {
+                    StatusLibrary.Log($"Failed to fetch filelist from both primary and fallback URLs:");
+                    StatusLibrary.Log($"Primary: {primaryUrl}/filelist_{suffix}.yml");
+                    StatusLibrary.Log($"Fallback: {fallbackUrl}/filelist_{suffix}.yml");
+                    StatusLibrary.Log($"Error: {filelistResponse}");
+                    return;
+                }
+                else
+                {
+                    // Fallback succeeded, update the filelistUrl for future use in this session
+                    filelistUrl = fallbackUrl;
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Successfully switched to fallback URL");
+                    }
+                }
             }
 
             // Read and check filelist version
