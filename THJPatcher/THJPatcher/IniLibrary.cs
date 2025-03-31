@@ -156,19 +156,32 @@ namespace THJPatcher
             try
             {
                 var entries = LoadChangelog();
+                Debug.WriteLine($"[DEBUG] Loaded {entries?.Count ?? 0} changelog entries");
                 if (entries != null && entries.Count > 0)
                 {
-                    // Get the first entry (most recent) and return its message_id
-                    var firstEntry = entries[0];
-                    if (firstEntry.ContainsKey("message_id"))
+                    // Get the last entry (most recent) and return its message_id
+                    var lastEntry = entries[entries.Count - 1];
+                    if (lastEntry.ContainsKey("message_id"))
                     {
-                        return firstEntry["message_id"];
+                        var messageId = lastEntry["message_id"];
+                        Debug.WriteLine($"[DEBUG] Found latest message_id: {messageId}");
+                        return messageId;
                     }
+                    else
+                    {
+                        Debug.WriteLine("[DEBUG] Last entry does not contain message_id");
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine("[DEBUG] No changelog entries found");
                 }
             }
             catch (Exception ex)
             {
                 StatusLibrary.Log($"[ERROR] Failed to get latest message_id: {ex.Message}");
+                Debug.WriteLine($"[DEBUG] Error in GetLatestMessageId: {ex.Message}");
+                Debug.WriteLine($"[DEBUG] Stack trace: {ex.StackTrace}");
             }
             return string.Empty;
         }
@@ -178,15 +191,20 @@ namespace THJPatcher
             try
             {
                 string changelogPath = GetChangelogPath();
+                Debug.WriteLine($"[DEBUG] Saving {entries?.Count ?? 0} changelog entries to: {changelogPath}");
                 var serializer = new SerializerBuilder()
                     .WithNamingConvention(CamelCaseNamingConvention.Instance)
                     .Build();
                 string contents = serializer.Serialize(entries);
+                Debug.WriteLine($"[DEBUG] Serialized content length: {contents?.Length ?? 0}");
                 File.WriteAllText(changelogPath, contents);
+                Debug.WriteLine($"[DEBUG] Successfully saved changelog");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Failed to save changelog
+                Debug.WriteLine($"[DEBUG] Error saving changelog: {ex.Message}");
+                Debug.WriteLine($"[DEBUG] Stack trace: {ex.StackTrace}");
+                StatusLibrary.Log($"[ERROR] Failed to save changelog: {ex.Message}");
             }
         }
 
@@ -195,6 +213,7 @@ namespace THJPatcher
             try
             {
                 string changelogPath = GetChangelogPath();
+                Debug.WriteLine($"[DEBUG] Loading changelog from: {changelogPath}");
                 if (File.Exists(changelogPath))
                 {
                     using (var input = File.OpenText(changelogPath))
@@ -202,13 +221,20 @@ namespace THJPatcher
                         var deserializer = new DeserializerBuilder()
                             .WithNamingConvention(CamelCaseNamingConvention.Instance)
                             .Build();
-                        return deserializer.Deserialize<List<Dictionary<string, string>>>(input) ?? new List<Dictionary<string, string>>();
+                        var entries = deserializer.Deserialize<List<Dictionary<string, string>>>(input) ?? new List<Dictionary<string, string>>();
+                        Debug.WriteLine($"[DEBUG] Successfully loaded {entries.Count} changelog entries");
+                        return entries;
                     }
                 }
+                else
+                {
+                    Debug.WriteLine("[DEBUG] Changelog file does not exist");
+                }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Failed to load changelog
+                Debug.WriteLine($"[DEBUG] Error loading changelog: {ex.Message}");
+                Debug.WriteLine($"[DEBUG] Stack trace: {ex.StackTrace}");
             }
             return new List<Dictionary<string, string>>();
         }

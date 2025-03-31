@@ -51,27 +51,77 @@
                       HorizontalAlignment="Center"
                       Margin="0,0,0,20"/>
 
-            <!-- Content -->
-            <ScrollViewer Grid.Row="1" 
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Disabled"
-                         Margin="0,0,0,20">
-                <StackPanel>
-                    <TextBlock x:Name="DateText"
-                             FontSize="20"
-                             FontWeight="Bold"
-                             Foreground="#FBE9A4"
-                             Margin="0,0,0,5"/>
-                    <TextBlock x:Name="AuthorText"
-                             FontSize="16"
-                             FontWeight="SemiBold"
-                             Foreground="#FBE9A4"
-                             Margin="0,0,0,10"/>
-                    <TextBlock x:Name="ContentText"
-                             TextWrapping="Wrap"
-                             Foreground="#FBE9A4"/>
-                </StackPanel>
-            </ScrollViewer>
+            <!-- Scrollable Content -->
+            <ListView Grid.Row="1" 
+                    x:Name="ChangelogList"
+                    VirtualizingPanel.IsVirtualizing="True" 
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    VirtualizingPanel.CacheLength="2"
+                    VirtualizingPanel.CacheLengthUnit="Page"
+                    ScrollViewer.CanContentScroll="False"
+                    ScrollViewer.PanningMode="VerticalOnly"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    BorderThickness="0"
+                    Background="Transparent"
+                    RenderOptions.BitmapScalingMode="HighQuality"
+                    UseLayoutRounding="True"
+                    Margin="0,0,0,20">
+                <ListView.Template>
+                    <ControlTemplate TargetType="ListView">
+                        <ScrollViewer Focusable="False" 
+                                    Padding="{TemplateBinding Padding}"
+                                    CanContentScroll="False"
+                                    PanningMode="VerticalOnly">
+                            <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ListView.Template>
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,15">
+                            <TextBlock Text="{Binding Date}" 
+                                     Visibility="{Binding DateVisibility}"
+                                     FontSize="20"
+                                     FontWeight="Bold"
+                                     Foreground="#FBE9A4"
+                                     Margin="0,0,0,5"/>
+                            <TextBlock Text="{Binding Author}" 
+                                     Visibility="{Binding AuthorVisibility}"
+                                     FontSize="16"
+                                     FontWeight="SemiBold"
+                                     Foreground="#FBE9A4"
+                                     Margin="0,0,0,10"/>
+                            <TextBlock Text="{Binding Content}" 
+                                     Visibility="{Binding ContentVisibility}"
+                                     TextWrapping="Wrap"
+                                     Foreground="#FBE9A4"
+                                     Margin="20,0,0,15"
+                                     LineHeight="24"/>
+                            <Rectangle Height="1"
+                                     Fill="#FBE9A4"
+                                     Opacity="0.6"
+                                     Margin="0,5,0,0"
+                                     Visibility="{Binding SeparatorVisibility}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Padding" Value="10,5"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListViewItem">
+                                    <ContentPresenter/>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListView.ItemContainerStyle>
+            </ListView>
 
             <!-- Acknowledge Button -->
             <Button Grid.Row="2"
