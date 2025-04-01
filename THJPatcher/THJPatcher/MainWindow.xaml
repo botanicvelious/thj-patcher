@@ -482,6 +482,15 @@
                                     Click="ResetSettings_Click"
                                     Visibility="Collapsed"
                                     ToolTip="Deletes all EverQuest configuration files. They will be recreated with defaults when you next launch the game."/>
+                                    
+                            <Button x:Name="btnFileIntegrityScan"
+                                    Content="File Integrity Scan"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="FileIntegrityScan_Click"
+                                    ToolTip="Performs a complete file integrity scan to verify all game files are intact."/>
                         </WrapPanel>
                     </ScrollViewer>
                 </Grid>
