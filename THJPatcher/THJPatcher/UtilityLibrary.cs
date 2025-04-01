@@ -193,8 +193,8 @@ namespace THJPatcher
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, MoveFileFlags dwFlags);
         
-        // Wrapper method for MoveFileEx
-        public static bool MoveFileEx(string existingFile, string newFile, MoveFileFlags flags)
+        // Wrapper method for MoveFileEx with a different name to avoid conflict
+        public static bool ScheduleFileOperation(string existingFile, string newFile, MoveFileFlags flags)
         {
             return MoveFileEx(existingFile, newFile, flags);
         }

@@ -1633,7 +1633,7 @@ namespace THJPatcher
                                     try
                                     {
                                         // Try Windows' MoveFileEx API to replace on reboot
-                                        if (UtilityLibrary.MoveFileEx(tempPath, path, UtilityLibrary.MoveFileFlags.MOVEFILE_DELAY_UNTIL_REBOOT | UtilityLibrary.MoveFileFlags.MOVEFILE_REPLACE_EXISTING))
+                                        if (UtilityLibrary.ScheduleFileOperation(tempPath, path, UtilityLibrary.MoveFileFlags.MOVEFILE_DELAY_UNTIL_REBOOT | UtilityLibrary.MoveFileFlags.MOVEFILE_REPLACE_EXISTING))
                                         {
                                             StatusLibrary.Log($"{entry.name} will be updated on next reboot");
                                             currentBytes += entry.size;
