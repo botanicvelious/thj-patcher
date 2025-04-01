@@ -491,6 +491,15 @@
                                     Style="{StaticResource GoldButton}"
                                     Click="FileIntegrityScan_Click"
                                     ToolTip="Performs a complete file integrity scan to verify all game files are intact."/>
+                                    
+                            <Button x:Name="btnMemoryOptimizations"
+                                    Content="Memory Optimizations"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="MemoryOptimizations_Click"
+                                    ToolTip="Set EQclient.ini settings for best memory performance"/>
                         </WrapPanel>
                     </ScrollViewer>
                 </Grid>

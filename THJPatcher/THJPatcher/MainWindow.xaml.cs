@@ -2341,6 +2341,123 @@ namespace THJPatcher
         RunFileIntegrityScanAsync();
     }
 
+    private async void MemoryOptimizations_Click(object sender, RoutedEventArgs e)
+    {
+        // Close the optimizations panel
+        optimizationsPanel.Visibility = Visibility.Collapsed;
+        logPanel.Visibility = Visibility.Visible;
+        
+        btnMemoryOptimizations.IsEnabled = false;
+        try
+        {
+            string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+            string eqcfgPath = Path.Combine(eqPath, "eqclient.ini");
+
+            if (!File.Exists(eqcfgPath))
+            {
+                MessageBox.Show("eqclient.ini not found", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            // Show confirmation dialog
+            string message = "This will modify settings in the EQclient.ini file to help with memory optimization. Continue?";
+            if (!CustomMessageBox.Show(message))
+            {
+                return;
+            }
+
+            StatusLibrary.Log("Applying memory optimizations to eqclient.ini...");
+            
+            await Task.Run(() =>
+            {
+                // Read the ini file
+                var lines = File.ReadAllLines(eqcfgPath);
+                
+                // Create dictionary of sections and their keys/values
+                var sections = new Dictionary<string, Dictionary<string, string>>();
+                string currentSection = "";
+                
+                foreach (var line in lines)
+                {
+                    string trimmedLine = line.Trim();
+                    if (trimmedLine.StartsWith("[") && trimmedLine.EndsWith("]"))
+                    {
+                        // This is a section header
+                        currentSection = trimmedLine;
+                        if (!sections.ContainsKey(currentSection))
+                        {
+                            sections[currentSection] = new Dictionary<string, string>();
+                        }
+                    }
+                    else if (!string.IsNullOrWhiteSpace(trimmedLine) && trimmedLine.Contains("="))
+                    {
+                        // This is a key=value pair
+                        var parts = trimmedLine.Split(new[] { '=' }, 2);
+                        if (parts.Length == 2 && !string.IsNullOrEmpty(currentSection))
+                        {
+                            sections[currentSection][parts[0].Trim()] = parts[1].Trim();
+                        }
+                    }
+                }
+                
+                // Update or add the memory optimization settings
+                if (!sections.ContainsKey("[Defaults]"))
+                {
+                    sections["[Defaults]"] = new Dictionary<string, string>();
+                }
+                
+                sections["[Defaults]"]["UseLitBatches"] = "FALSE";
+                sections["[Defaults]"]["VertexShaders"] = "TRUE";
+                sections["[Defaults]"]["ShowDynamicLights"] = "FALSE";
+                sections["[Defaults]"]["MipMapping"] = "FALSE";
+                sections["[Defaults]"]["TextureCache"] = "FALSE";
+                sections["[Defaults]"]["UseD3DTextureCompression"] = "FALSE";
+                sections["[Defaults]"]["MultiPassLighting"] = "0";
+                sections["[Defaults]"]["PostEffects"] = "0";
+                sections["[Defaults]"]["Shadows"] = "0";
+                sections["[Defaults]"]["StreamItemTextures"] = "0";
+                sections["[Defaults]"]["Bloom"] = "0";
+                
+                if (!sections.ContainsKey("[Options]"))
+                {
+                    sections["[Options]"] = new Dictionary<string, string>();
+                }
+                
+                sections["[Options]"]["MaxFPS"] = "60";
+                sections["[Options]"]["MaxBGFPS"] = "20";
+                sections["[Options]"]["Realism"] = "0";
+                sections["[Options]"]["ClipPlane"] = "12";
+                sections["[Options]"]["LODBias"] = "5";
+                
+                // Rebuild the ini file content
+                var newContent = new List<string>();
+                foreach (var section in sections)
+                {
+                    newContent.Add(section.Key);
+                    foreach (var entry in section.Value)
+                    {
+                        newContent.Add($"{entry.Key}={entry.Value}");
+                    }
+                    newContent.Add(""); // Empty line between sections
+                }
+                
+                // Write the updated content back to the file
+                File.WriteAllLines(eqcfgPath, newContent);
+            });
+            
+            StatusLibrary.Log("Memory optimizations applied successfully!");
+        }
+        catch (Exception ex)
+        {
+            StatusLibrary.Log($"Error applying memory optimizations: {ex.Message}");
+            MessageBox.Show($"Error applying memory optimizations: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            btnMemoryOptimizations.IsEnabled = true;
+        }
+    }
+
     private async Task RunFileIntegrityScanAsync()
     {
         StatusLibrary.Log("Starting file integrity scan...");
