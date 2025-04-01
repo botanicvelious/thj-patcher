@@ -1578,6 +1578,9 @@ namespace THJPatcher
                 // Skip DLL files that are currently in use
                 if (entry.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
                 {
+                    bool isFileInUse = false;
+                    bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
+
                     try
                     {
                         // Try to open the file for writing to check if it's locked
@@ -1589,6 +1592,88 @@ namespace THJPatcher
                     }
                     catch (IOException)
                     {
+                        isFileInUse = true;
+                    }
+
+                    if (isFileInUse)
+                    {
+                        if (isDinput8)
+                        {
+                            // Special handling for dinput8.dll - force update with a backup and replace approach
+                            try
+                            {
+                                // Create a temp backup path
+                                string tempPath = path + ".new";
+                                
+                                // Download to the temp file
+                                string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
+                                string response = await UtilityLibrary.DownloadFile(cts, backupUrl, entry.name + ".new");
+                                
+                                if (response != "")
+                                {
+                                    string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
+                                    response = await UtilityLibrary.DownloadFile(cts, url, entry.name + ".new");
+                                    if (response != "")
+                                    {
+                                        StatusLibrary.Log($"Failed to download {entry.name} to temp file: {response}");
+                                        continue;
+                                    }
+                                }
+                                
+                                // Verify the temp file exists
+                                if (!File.Exists(tempPath))
+                                {
+                                    StatusLibrary.Log($"[Error] Failed to create temp file for {entry.name}");
+                                    continue;
+                                }
+                                
+                                // Schedule the file to be replaced on next reboot
+                                if (IsAdministrator())
+                                {
+                                    try
+                                    {
+                                        // Try Windows' MoveFileEx API to replace on reboot
+                                        if (UtilityLibrary.MoveFileEx(tempPath, path, UtilityLibrary.MoveFileFlags.MOVEFILE_DELAY_UNTIL_REBOOT | UtilityLibrary.MoveFileFlags.MOVEFILE_REPLACE_EXISTING))
+                                        {
+                                            StatusLibrary.Log($"{entry.name} will be updated on next reboot");
+                                            currentBytes += entry.size;
+                                            patchedBytes += entry.size;
+                                            continue;
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        StatusLibrary.Log($"[Info] Could not schedule {entry.name} replacement: {ex.Message}");
+                                    }
+                                }
+                                
+                                // If MoveFileEx fails or we're not admin, try a more aggressive approach
+                                try
+                                {
+                                    StatusLibrary.Log($"Forcing update of {entry.name} - file appears locked but may not be");
+                                    File.Delete(path);
+                                    File.Move(tempPath, path);
+                                    StatusLibrary.Log($"Successfully updated {entry.name}");
+                                    currentBytes += entry.size;
+                                    patchedBytes += entry.size;
+                                    continue;
+                                }
+                                catch (Exception ex)
+                                {
+                                    StatusLibrary.Log($"[Warning] Could not force update {entry.name}: {ex.Message}");
+                                    if (File.Exists(tempPath))
+                                    {
+                                        // Keep the temp file for next run
+                                        StatusLibrary.Log($"Keeping {entry.name}.new for next run");
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                StatusLibrary.Log($"[Warning] Special handling for {entry.name} failed: {ex.Message}");
+                            }
+                        }
+                        
                         StatusLibrary.Log($"[Warning] Skipping {entry.name} - file is currently in use");
                         continue;
                     }
