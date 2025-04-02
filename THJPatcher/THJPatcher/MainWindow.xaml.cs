@@ -171,6 +171,7 @@ namespace THJPatcher
         private string fileName;
         private string version;
         public string Version => version;
+        private List<FileEntry> filesToDownload = new List<FileEntry>();
 
         // Server and file configuration
         private static string serverName;
@@ -868,10 +869,7 @@ namespace THJPatcher
                 if (needsUpdate)
                 {
                     // Add dinput8.dll to the list of files that need updating
-                    if (filesToDownload == null)
-                    {
-                        filesToDownload = new List<FileEntry>();
-                    }
+                    // No need to check if filesToDownload is null since it's a class-level field now
 
                     if (!filesToDownload.Any(e => e.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase)))
                     {
@@ -1602,7 +1600,7 @@ namespace THJPatcher
             // Calculate total files to check
             int totalFiles = filelist.downloads.Count;
             int checkedFiles = 0;
-            List<FileEntry> filesToDownload = new List<FileEntry>();
+            filesToDownload.Clear(); // Clear the existing list
 
             // First scan - check all files
             StatusLibrary.Log("Scanning files...");
