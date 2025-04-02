@@ -2,6 +2,7 @@
 using System.IO;
 using System.Reflection;
 using System.Windows;
+using System.Collections.Generic;
 using MessageBox = System.Windows.MessageBox;
 
 namespace THJPatcher
@@ -18,6 +19,9 @@ namespace THJPatcher
             {
                 // Set up assembly resolution to help find dependencies
                 AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
+
+                // Set up exception handling for unhandled exceptions
+                AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
                 // Create themes directory if it doesn't exist
                 string exeFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -37,46 +41,105 @@ namespace THJPatcher
                     }
                 }
 
-                // Extract theme files if they don't exist
-                string defaultsFile = Path.Combine(themesFolder, "materialdesigntheme.defaults.xaml");
-                if (!File.Exists(defaultsFile))
+                // List of theme files to extract
+                Dictionary<string, string> themeFiles = new Dictionary<string, string>
                 {
-                    try
+                    { "materialdesigntheme.defaults.xaml", "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"></ResourceDictionary>" },
+                    { "materialdesigntheme.light.xaml", "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"></ResourceDictionary>" },
+                    { "materialdesigntheme.dark.xaml", "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"></ResourceDictionary>" },
+                    { "materialdesigntheme.colors.xaml", "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"></ResourceDictionary>" },
+                    { "materialdesigntheme.button.xaml", "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"></ResourceDictionary>" },
+                    { "materialdesigntheme.textblock.xaml", "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"></ResourceDictionary>" }
+                };
+
+                // Extract all theme files
+                foreach (var themeFile in themeFiles)
+                {
+                    string filePath = Path.Combine(themesFolder, themeFile.Key);
+                    if (!File.Exists(filePath))
                     {
-                        // Extract the embedded resource
-                        using (Stream resourceStream = Assembly.GetExecutingAssembly()
-                            .GetManifestResourceStream("THJPatcher.Resources.materialdesigntheme.defaults.xaml"))
+                        try
                         {
-                            if (resourceStream != null)
+                            // Try to extract the embedded resource
+                            string resourceName = "THJPatcher.Resources." + themeFile.Key.ToLower();
+                            using (Stream resourceStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
                             {
-                                using (FileStream fileStream = new FileStream(defaultsFile, FileMode.Create))
+                                if (resourceStream != null)
                                 {
-                                    resourceStream.CopyTo(fileStream);
+                                    using (FileStream fileStream = new FileStream(filePath, FileMode.Create))
+                                    {
+                                        resourceStream.CopyTo(fileStream);
+                                    }
+                                }
+                                else
+                                {
+                                    // If resource not found, create a minimal version
+                                    File.WriteAllText(filePath, themeFile.Value);
                                 }
                             }
-                            else
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log the error but continue - we'll create a minimal version
+                            Console.WriteLine($"Error extracting theme file {themeFile.Key}: {ex.Message}");
+                            try
                             {
-                                // If resource not found, create a minimal version
-                                File.WriteAllText(defaultsFile, "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"></ResourceDictionary>");
+                                // Create a minimal version as fallback
+                                File.WriteAllText(filePath, themeFile.Value);
+                            }
+                            catch
+                            {
+                                // If we can't even create the minimal version, just continue
+                                // The application will try to use the embedded resources
                             }
                         }
                     }
-                    catch (Exception ex)
+                }
+
+                // Create a components directory for MaterialDesign
+                string componentsFolder = Path.Combine(themesFolder, "components");
+                if (!Directory.Exists(componentsFolder))
+                {
+                    try
                     {
-                        MessageBox.Show($"Error extracting theme files: {ex.Message}\n\nPlease try running the application from a different folder.",
-                            "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        return;
+                        Directory.CreateDirectory(componentsFolder);
+                    }
+                    catch
+                    {
+                        // Silently fail - we'll try to use embedded resources
                     }
                 }
 
-                // Start the application
-                var application = new System.Windows.Application();
-                application.StartupUri = new Uri("MainWindow.xaml", UriKind.Relative);
-                application.Run();
+                // Modify the application configuration to handle resource loading
+                AppDomain.CurrentDomain.SetData("PRIVATE_BINPATH", exeFolder);
+
+                // Start the application with error handling
+                try
+                {
+                    // Use our custom App class that has better error handling
+                    var application = new App();
+                    application.InitializeComponent();
+                    application.Run();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error starting the application: {ex.Message}\n\nPlease try running the application from a different folder or as administrator.",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"An error occurred while starting the application: {ex.Message}\n\n{ex.StackTrace}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Exception ex = e.ExceptionObject as Exception;
+            if (ex != null)
+            {
+                MessageBox.Show($"Unhandled exception: {ex.Message}\n\n{ex.StackTrace}",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -100,6 +163,17 @@ namespace THJPatcher
                 if (File.Exists(libPath))
                 {
                     return Assembly.LoadFrom(libPath);
+                }
+
+                // Check for MaterialDesignThemes.Wpf specifically
+                if (assemblyName == "MaterialDesignThemes.Wpf")
+                {
+                    // Try to find it in the application folder
+                    string[] files = Directory.GetFiles(folderPath, "MaterialDesignThemes.Wpf.dll", SearchOption.AllDirectories);
+                    if (files.Length > 0)
+                    {
+                        return Assembly.LoadFrom(files[0]);
+                    }
                 }
             }
             catch
