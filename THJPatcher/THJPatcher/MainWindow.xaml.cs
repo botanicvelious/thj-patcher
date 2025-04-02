@@ -768,6 +768,9 @@ namespace THJPatcher
             // Check for updates
             await CheckForUpdates();
 
+            // Run a quick file scan every time the patcher starts
+            await RunFileIntegrityScanAsync();
+
             // If we're in auto-patch mode, start patching (but not for self-updates)
             if (isAutoPatch && !isNeedingSelfUpdate)
             {
@@ -2676,8 +2679,8 @@ namespace THJPatcher
             optimizationsPanel.Visibility = Visibility.Collapsed;
             logPanel.Visibility = Visibility.Visible;
 
-            // Run the file integrity scan
-            RunFileIntegrityScanAsync();
+            // Run the file integrity scan with full scan only
+            RunFileIntegrityScanAsync(true);
         }
 
         private async void MemoryOptimizations_Click(object sender, RoutedEventArgs e)
@@ -2797,7 +2800,7 @@ namespace THJPatcher
             }
         }
 
-        private async Task RunFileIntegrityScanAsync()
+        private async Task RunFileIntegrityScanAsync(bool fullScanOnly = false)
         {
             StatusLibrary.Log("Starting file integrity scan...");
             await Task.Delay(1000);
@@ -2884,28 +2887,65 @@ namespace THJPatcher
                     continue;
                 }
 
+                // Check if this is dinput8.dll for special handling
+                bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
+
                 if (!await Task.Run(() => File.Exists(path)))
                 {
                     if (isDebugMode)
                     {
                         StatusLibrary.Log($"[DEBUG] Missing file detected: {entry.name}");
                     }
-                    StatusLibrary.Log($"Missing file detected: {entry.name}");
+
+                    if (isDinput8)
+                    {
+                        StatusLibrary.Log($"[Important] Missing dinput8.dll detected - will be downloaded");
+                    }
+                    else
+                    {
+                        StatusLibrary.Log($"Missing file detected: {entry.name}");
+                    }
+
                     missingOrModifiedFiles.Add(entry);
                     quickCheckPassed = false;
                 }
                 else
                 {
-                    var fileInfo = await Task.Run(() => new FileInfo(path));
-                    if (fileInfo.Length != entry.size)
+                    // For dinput8.dll, always check the MD5 hash in the quick scan
+                    if (isDinput8)
                     {
-                        if (isDebugMode)
+                        var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                        if (md5.ToUpper() != entry.md5.ToUpper())
                         {
-                            StatusLibrary.Log($"[DEBUG] File size mismatch detected: {entry.name}");
+                            StatusLibrary.Log($"Current MD5: {md5.ToUpper()}");
+                            StatusLibrary.Log($"[Important] dinput8.dll is outdated - will be updated");
+                            StatusLibrary.Log($"Expected MD5: {entry.md5.ToUpper()}");
+
+                            if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
+                            {
+                                missingOrModifiedFiles.Add(entry);
+                            }
+                            quickCheckPassed = false;
                         }
-                        StatusLibrary.Log($"Size mismatch detected: {entry.name}");
-                        missingOrModifiedFiles.Add(entry);
-                        quickCheckPassed = false;
+                        else if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] dinput8.dll is up to date (MD5: {md5.ToUpper()})");
+                        }
+                    }
+                    else
+                    {
+                        // For other files, just check the size
+                        var fileInfo = await Task.Run(() => new FileInfo(path));
+                        if (fileInfo.Length != entry.size)
+                        {
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] File size mismatch detected: {entry.name}");
+                            }
+                            StatusLibrary.Log($"Size mismatch detected: {entry.name}");
+                            missingOrModifiedFiles.Add(entry);
+                            quickCheckPassed = false;
+                        }
                     }
                 }
             }
@@ -2917,7 +2957,26 @@ namespace THJPatcher
                 progressBar.Value = 0;
             });
 
-            // Always do a full integrity check when manually requested
+            // If quick check passed and this is an automatic scan, we're done
+            if (quickCheckPassed && !fullScanOnly)
+            {
+                // Update integrity check timestamp and status
+                IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
+                IniLibrary.instance.QuickCheckStatus = "success";
+                await Task.Run(() => IniLibrary.Save());
+
+                // Hide progress bar
+                Dispatcher.Invoke(() =>
+                {
+                    txtProgress.Visibility = Visibility.Collapsed;
+                    progressBar.Value = 0;
+                });
+
+                StatusLibrary.Log("Quick file check passed. All files appear to be intact.");
+                return;
+            }
+
+            // If quick check failed or full scan was requested, do a full integrity check
             StatusLibrary.Log("Performing full file integrity check...");
             txtProgress.Visibility = Visibility.Visible;
             progressBar.Value = 0;
