@@ -761,6 +761,9 @@ namespace THJPatcher
             // Check for pending dinput8.dll.new file
             await CheckForPendingDinput8();
 
+            // Force check dinput8.dll for updates
+            await ForceDinput8Check();
+
             // Check for updates
             await CheckForUpdates();
 
@@ -773,6 +776,121 @@ namespace THJPatcher
             }
 
             isLoading = false;
+        }
+
+        private async Task ForceDinput8Check()
+        {
+            try
+            {
+                StatusLibrary.Log("Checking dinput8.dll for updates...");
+
+                // Get the path to dinput8.dll
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string dinput8Path = Path.Combine(eqPath, "dinput8.dll");
+
+                // Download the filelist to get the latest dinput8.dll MD5
+                string suffix = "rof";
+                string primaryUrl = filelistUrl;
+                string webUrl = $"{primaryUrl}/filelist_{suffix}.yml";
+                string filelistResponse = "";
+
+                // Try to download the filelist
+                filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+
+                if (string.IsNullOrEmpty(filelistResponse))
+                {
+                    // Try fallback URL
+                    string fallbackUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
+                    webUrl = $"{fallbackUrl}/filelist_{suffix}.yml";
+                    filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+                }
+
+                if (string.IsNullOrEmpty(filelistResponse))
+                {
+                    StatusLibrary.Log("[Warning] Could not download filelist to check dinput8.dll");
+                    return;
+                }
+
+                // Parse the filelist
+                FileList filelist = null;
+                try
+                {
+                    var deserializer = new DeserializerBuilder()
+                        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                        .Build();
+                    filelist = deserializer.Deserialize<FileList>(File.ReadAllText("filelist.yml"));
+                }
+                catch (Exception ex)
+                {
+                    StatusLibrary.Log($"[Error] Failed to parse filelist: {ex.Message}");
+                    return;
+                }
+
+                if (filelist == null || filelist.downloads == null)
+                {
+                    StatusLibrary.Log("[Error] Invalid filelist format");
+                    return;
+                }
+
+                // Find dinput8.dll in the filelist
+                FileEntry dinput8Entry = filelist.downloads.FirstOrDefault(e => e.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase));
+
+                if (dinput8Entry == null)
+                {
+                    StatusLibrary.Log("[Warning] Could not find dinput8.dll in filelist");
+                    return;
+                }
+
+                // Check if dinput8.dll exists locally
+                bool needsUpdate = false;
+                if (!File.Exists(dinput8Path))
+                {
+                    StatusLibrary.Log("dinput8.dll not found, will be downloaded");
+                    needsUpdate = true;
+                }
+                else
+                {
+                    // Check MD5 hash
+                    string localMd5 = await Task.Run(() => UtilityLibrary.GetMD5(dinput8Path));
+                    if (localMd5.ToUpper() != dinput8Entry.md5.ToUpper())
+                    {
+                        StatusLibrary.Log("dinput8.dll is outdated, will be updated");
+                        StatusLibrary.Log($"Current MD5: {localMd5.ToUpper()}");
+                        StatusLibrary.Log($"Expected MD5: {dinput8Entry.md5.ToUpper()}");
+                        needsUpdate = true;
+                    }
+                    else
+                    {
+                        StatusLibrary.Log("dinput8.dll is up to date");
+                    }
+                }
+
+                if (needsUpdate)
+                {
+                    // Add dinput8.dll to the list of files that need updating
+                    if (filesToDownload == null)
+                    {
+                        filesToDownload = new List<FileEntry>();
+                    }
+
+                    if (!filesToDownload.Any(e => e.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        filesToDownload.Add(dinput8Entry);
+                        StatusLibrary.Log("Added dinput8.dll to update queue");
+
+                        // Make the patch button visible
+                        Dispatcher.Invoke(() =>
+                        {
+                            btnPatch.Visibility = Visibility.Visible;
+                            btnPlay.Visibility = Visibility.Collapsed;
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[Error] Failed to check dinput8.dll for updates: {ex.Message}");
+            }
         }
 
         private async Task CheckForPendingDinput8()
@@ -1430,6 +1548,9 @@ namespace THJPatcher
                 StatusLibrary.Log("Patching cancelled.");
                 return;
             }
+
+            // Force check for dinput8.dll updates
+            await ForceDinput8Check();
 
             // Get the client version suffix
             string suffix = "rof"; // Since we're only supporting RoF/RoF2
@@ -2777,11 +2898,21 @@ namespace THJPatcher
                     continue;
                 }
 
+                // Check if this is dinput8.dll for special handling
+                bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
+
                 if (!await Task.Run(() => File.Exists(path)))
                 {
                     if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
                     {
-                        StatusLibrary.Log($"Missing file detected: {entry.name}");
+                        if (isDinput8)
+                        {
+                            StatusLibrary.Log($"[Important] Missing dinput8.dll detected - will be downloaded");
+                        }
+                        else
+                        {
+                            StatusLibrary.Log($"Missing file detected: {entry.name}");
+                        }
                         missingOrModifiedFiles.Add(entry);
                     }
                     allFilesIntact = false;
@@ -2797,12 +2928,27 @@ namespace THJPatcher
                             StatusLibrary.Log($"[DEBUG] Expected: {entry.md5.ToUpper()}");
                             StatusLibrary.Log($"[DEBUG] Got: {md5.ToUpper()}");
                         }
-                        StatusLibrary.Log($"Content mismatch detected: {entry.name}");
+
+                        if (isDinput8)
+                        {
+                            StatusLibrary.Log($"[Important] dinput8.dll is outdated - will be updated");
+                            StatusLibrary.Log($"Current MD5: {md5.ToUpper()}");
+                            StatusLibrary.Log($"Expected MD5: {entry.md5.ToUpper()}");
+                        }
+                        else
+                        {
+                            StatusLibrary.Log($"Content mismatch detected: {entry.name}");
+                        }
+
                         if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
                         {
                             missingOrModifiedFiles.Add(entry);
                         }
                         allFilesIntact = false;
+                    }
+                    else if (isDinput8 && isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] dinput8.dll is up to date (MD5: {md5.ToUpper()})");
                     }
                 }
             }
