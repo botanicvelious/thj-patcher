@@ -109,11 +109,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="Resources\rof.png" />
+    <None Remove="Resources\materialdesigntheme.defaults.xaml" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\rof.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\materialdesigntheme.defaults.xaml" />
   </ItemGroup>
   <ItemGroup>
     <None Update="app.manifest">
