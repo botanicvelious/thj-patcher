@@ -110,7 +110,6 @@
   <ItemGroup>
     <None Remove="Resources\rof.png" />
     <None Remove="Resources\materialdesigntheme.defaults.xaml" />
-    <None Remove="App.xaml" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\rof.png">
@@ -119,12 +118,6 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\materialdesigntheme.defaults.xaml" />
-  </ItemGroup>
-  <ItemGroup>
-    <ApplicationDefinition Include="App.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </ApplicationDefinition>
   </ItemGroup>
   <ItemGroup>
     <None Update="app.manifest">

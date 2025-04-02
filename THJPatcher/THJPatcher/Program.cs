@@ -116,9 +116,20 @@ namespace THJPatcher
                 // Start the application with error handling
                 try
                 {
-                    // Use our custom App class that has better error handling
-                    var application = new App();
-                    application.InitializeComponent();
+                    var application = new System.Windows.Application();
+
+                    // Add a handler for unhandled exceptions
+                    application.DispatcherUnhandledException += (s, e) =>
+                    {
+                        MessageBox.Show($"Unhandled exception: {e.Exception.Message}\n\n{e.Exception.StackTrace}",
+                            "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        e.Handled = true;
+                    };
+
+                    // Set the startup URI
+                    application.StartupUri = new Uri("MainWindow.xaml", UriKind.Relative);
+
+                    // Run the application
                     application.Run();
                 }
                 catch (Exception ex)
