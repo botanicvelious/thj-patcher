@@ -11,7 +11,7 @@ namespace THJPatcher
         static void Main()
         {
             var application = new System.Windows.Application();
-            application.StartupUri = new Uri("MainWindow.xaml", UriKind.Relative);
+            application.StartupUri = new Uri("pack://application:,,,/MainWindow.xaml", UriKind.Absolute);
             application.Run();
         }
     }
