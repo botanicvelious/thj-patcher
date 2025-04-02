@@ -288,7 +288,7 @@ namespace THJPatcher
 
             fileName = "heroesjourneyemu";
 
-            filelistUrl = "https://patch.heroesjourneyemu.com/";
+            filelistUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
             if (string.IsNullOrEmpty(filelistUrl))
             {
                 MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the file list url is not provided or screenshot this message.", serverName);
@@ -791,7 +791,7 @@ namespace THJPatcher
 
                 // Download the filelist to get the latest dinput8.dll MD5
                 string suffix = "rof";
-                string primaryUrl = filelistUrl;
+                string primaryUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download";
                 string webUrl = $"{primaryUrl}/filelist_{suffix}.yml";
                 string filelistResponse = "";
 
@@ -825,7 +825,7 @@ namespace THJPatcher
                 if (string.IsNullOrEmpty(filelistResponse))
                 {
                     // Try fallback URL with timeout
-                    string fallbackUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
+                    string fallbackUrl = "https://patch.heroesjourneyemu.com";
                     webUrl = $"{fallbackUrl}/filelist_{suffix}.yml";
 
                     try
@@ -1238,7 +1238,7 @@ namespace THJPatcher
             // Now check if game files need updating by comparing filelist version
             string suffix = "rof";
             string primaryUrl = filelistUrl;
-            string fallbackUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
+            string fallbackUrl = "https://patch.heroesjourneyemu.com";
             string webUrl = $"{primaryUrl}/filelist_{suffix}.yml";
             string filelistResponse = "";
 
@@ -2805,7 +2805,7 @@ namespace THJPatcher
             // Download and parse the filelist
             string suffix = "rof";
             string primaryUrl = filelistUrl;
-            string fallbackUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
+            string fallbackUrl = "https://patch.heroesjourneyemu.com";
             string webUrl = $"{primaryUrl}/filelist_{suffix}.yml";
             string filelistResponse = "";
 
