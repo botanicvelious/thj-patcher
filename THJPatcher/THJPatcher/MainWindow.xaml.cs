@@ -795,15 +795,64 @@ namespace THJPatcher
                 string webUrl = $"{primaryUrl}/filelist_{suffix}.yml";
                 string filelistResponse = "";
 
-                // Try to download the filelist
-                filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+                // Try to download the filelist with a timeout
+                try
+                {
+                    using (var client = new HttpClient())
+                    {
+                        // Set a timeout of 3 seconds for the filelist download
+                        client.Timeout = TimeSpan.FromSeconds(3);
+
+                        // Download the filelist
+                        var response = await client.GetAsync(webUrl);
+                        if (response.IsSuccessStatusCode)
+                        {
+                            await response.Content.ReadAsStringAsync();
+                            // If successful, download the file using the regular method
+                            filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+                        }
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    StatusLibrary.Log("[Info] Filelist download timed out after 3 seconds");
+                }
+                catch (Exception ex)
+                {
+                    StatusLibrary.Log($"[Info] Failed to download filelist: {ex.Message}");
+                }
 
                 if (string.IsNullOrEmpty(filelistResponse))
                 {
-                    // Try fallback URL
+                    // Try fallback URL with timeout
                     string fallbackUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
                     webUrl = $"{fallbackUrl}/filelist_{suffix}.yml";
-                    filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+
+                    try
+                    {
+                        using (var client = new HttpClient())
+                        {
+                            // Set a timeout of 3 seconds for the fallback filelist download
+                            client.Timeout = TimeSpan.FromSeconds(3);
+
+                            // Download the filelist
+                            var response = await client.GetAsync(webUrl);
+                            if (response.IsSuccessStatusCode)
+                            {
+                                await response.Content.ReadAsStringAsync();
+                                // If successful, download the file using the regular method
+                                filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+                            }
+                        }
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        StatusLibrary.Log("[Info] Fallback filelist download timed out after 3 seconds");
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[Info] Failed to download fallback filelist: {ex.Message}");
+                    }
                 }
 
                 if (string.IsNullOrEmpty(filelistResponse))
