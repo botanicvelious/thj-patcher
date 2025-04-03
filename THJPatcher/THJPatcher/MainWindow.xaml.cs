@@ -711,6 +711,12 @@ namespace THJPatcher
                 }
             }
 
+            // Remove any conflicting files
+            await RemoveConflictingFiles();
+
+            // Check for pending dinput8.dll.new file
+            await CheckForPendingDinput8();
+
             // Check server status
             await CheckServerStatus();
 
@@ -759,19 +765,11 @@ namespace THJPatcher
                 StatusLibrary.Log($"[Error] Failed to create DXVK configuration: {ex.Message}");
             }
 
-            // Remove any conflicting files
-            await RemoveConflictingFiles();
-
-            // Check for pending dinput8.dll.new file
-            await CheckForPendingDinput8();
-
-            // Force check dinput8.dll for updates
-            await ForceDinput8Check();
-
             // Check for updates
             await CheckForUpdates();
 
             // Run a quick file scan every time the patcher starts
+            // (This includes checking dinput8.dll)
             await RunFileIntegrityScanAsync();
 
             // If we're in auto-patch mode, start patching (but not for self-updates)
@@ -1093,10 +1091,9 @@ namespace THJPatcher
                                 StatusLibrary.Log("[Warning] Failed to schedule dinput8.dll replacement");
                             }
                         }
-                        else
+                        else if (isDebugMode)
                         {
-                            StatusLibrary.Log("[Warning] Administrator privileges required to update dinput8.dll");
-                            StatusLibrary.Log("Please run the patcher as administrator to complete the update");
+                            StatusLibrary.Log("[DEBUG] Administrator privileges required to update dinput8.dll");
                         }
                     }
                     catch (Exception ex)
@@ -1507,7 +1504,7 @@ namespace THJPatcher
                 {
                     // No files need updating despite version change
                     // Go ahead and update the last patched version
-                    StatusLibrary.Log("All files are up to date.");
+                    StatusLibrary.Log("All patcher files are up to date.");
                     IniLibrary.instance.LastPatchedVersion = filelist.version;
                     await Task.Run(() => IniLibrary.Save());
 
@@ -1527,13 +1524,14 @@ namespace THJPatcher
                 }
                 else
                 {
-                    StatusLibrary.Log("Up to date - no update needed");
+                    StatusLibrary.Log("Patcher is up to date - no update needed");
                 }
 
+                // Don't show the play button yet - it will be shown after the quick scan
                 Dispatcher.Invoke(() =>
                 {
                     btnPatch.Visibility = Visibility.Collapsed;
-                    btnPlay.Visibility = Visibility.Visible;
+                    btnPlay.Visibility = Visibility.Collapsed;
                 });
             }
         }
