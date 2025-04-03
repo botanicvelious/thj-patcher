@@ -759,6 +759,9 @@ namespace THJPatcher
                 StatusLibrary.Log($"[Error] Failed to create DXVK configuration: {ex.Message}");
             }
 
+            // Remove any conflicting files
+            await RemoveConflictingFiles();
+
             // Check for pending dinput8.dll.new file
             await CheckForPendingDinput8();
 
@@ -786,7 +789,10 @@ namespace THJPatcher
         {
             try
             {
-                StatusLibrary.Log("Checking dinput8.dll for updates...");
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log("[DEBUG] Silently checking dinput8.dll for updates...");
+                }
 
                 // Get the path to dinput8.dll
                 string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
@@ -803,8 +809,8 @@ namespace THJPatcher
                 {
                     using (var client = new HttpClient())
                     {
-                        // Set a timeout of 3 seconds for the filelist download
-                        client.Timeout = TimeSpan.FromSeconds(3);
+                        // Set a timeout of 5 seconds for the filelist download
+                        client.Timeout = TimeSpan.FromSeconds(5);
 
                         // Download the filelist
                         var response = await client.GetAsync(webUrl);
@@ -813,16 +819,20 @@ namespace THJPatcher
                             await response.Content.ReadAsStringAsync();
                             // If successful, download the file using the regular method
                             filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log("[DEBUG] Successfully downloaded filelist from primary URL");
+                            }
                         }
                     }
                 }
-                catch (TaskCanceledException)
-                {
-                    StatusLibrary.Log("[Info] Filelist download timed out after 3 seconds");
-                }
                 catch (Exception ex)
                 {
-                    StatusLibrary.Log($"[Info] Failed to download filelist: {ex.Message}");
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Failed to download filelist from primary URL: {ex.Message}");
+                    }
                 }
 
                 if (string.IsNullOrEmpty(filelistResponse))
@@ -835,8 +845,8 @@ namespace THJPatcher
                     {
                         using (var client = new HttpClient())
                         {
-                            // Set a timeout of 3 seconds for the fallback filelist download
-                            client.Timeout = TimeSpan.FromSeconds(3);
+                            // Set a timeout of 5 seconds for the fallback filelist download
+                            client.Timeout = TimeSpan.FromSeconds(5);
 
                             // Download the filelist
                             var response = await client.GetAsync(webUrl);
@@ -845,22 +855,29 @@ namespace THJPatcher
                                 await response.Content.ReadAsStringAsync();
                                 // If successful, download the file using the regular method
                                 filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+
+                                if (isDebugMode)
+                                {
+                                    StatusLibrary.Log("[DEBUG] Successfully downloaded filelist from fallback URL");
+                                }
                             }
                         }
                     }
-                    catch (TaskCanceledException)
-                    {
-                        StatusLibrary.Log("[Info] Fallback filelist download timed out after 3 seconds");
-                    }
                     catch (Exception ex)
                     {
-                        StatusLibrary.Log($"[Info] Failed to download fallback filelist: {ex.Message}");
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Failed to download filelist from fallback URL: {ex.Message}");
+                        }
                     }
                 }
 
                 if (string.IsNullOrEmpty(filelistResponse))
                 {
-                    StatusLibrary.Log("[Warning] Could not download filelist to check dinput8.dll");
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Could not download filelist to check dinput8.dll");
+                    }
                     return;
                 }
 
@@ -872,16 +889,27 @@ namespace THJPatcher
                         .WithNamingConvention(CamelCaseNamingConvention.Instance)
                         .Build();
                     filelist = deserializer.Deserialize<FileList>(File.ReadAllText("filelist.yml"));
+
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Successfully parsed filelist");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    StatusLibrary.Log($"[Error] Failed to parse filelist: {ex.Message}");
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Failed to parse filelist: {ex.Message}");
+                    }
                     return;
                 }
 
                 if (filelist == null || filelist.downloads == null)
                 {
-                    StatusLibrary.Log("[Error] Invalid filelist format");
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Invalid filelist format");
+                    }
                     return;
                 }
 
@@ -890,7 +918,10 @@ namespace THJPatcher
 
                 if (dinput8Entry == null)
                 {
-                    StatusLibrary.Log("[Warning] Could not find dinput8.dll in filelist");
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Could not find dinput8.dll in filelist");
+                    }
                     return;
                 }
 
@@ -898,7 +929,10 @@ namespace THJPatcher
                 bool needsUpdate = false;
                 if (!File.Exists(dinput8Path))
                 {
-                    StatusLibrary.Log("dinput8.dll not found, will be downloaded");
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] dinput8.dll not found, will be downloaded");
+                    }
                     needsUpdate = true;
                 }
                 else
@@ -907,39 +941,90 @@ namespace THJPatcher
                     string localMd5 = await Task.Run(() => UtilityLibrary.GetMD5(dinput8Path));
                     if (localMd5.ToUpper() != dinput8Entry.md5.ToUpper())
                     {
-                        StatusLibrary.Log("dinput8.dll is outdated, will be updated");
-                        StatusLibrary.Log($"Current MD5: {localMd5.ToUpper()}");
-                        StatusLibrary.Log($"Expected MD5: {dinput8Entry.md5.ToUpper()}");
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log("[DEBUG] dinput8.dll is outdated, will be updated");
+                            StatusLibrary.Log($"[DEBUG] Current MD5: {localMd5.ToUpper()}");
+                            StatusLibrary.Log($"[DEBUG] Expected MD5: {dinput8Entry.md5.ToUpper()}");
+                        }
                         needsUpdate = true;
                     }
-                    else
+                    else if (isDebugMode)
                     {
-                        StatusLibrary.Log("dinput8.dll is up to date");
+                        StatusLibrary.Log("[DEBUG] dinput8.dll is up to date");
                     }
                 }
 
                 if (needsUpdate)
                 {
                     // Add dinput8.dll to the list of files that need updating
-                    // No need to check if filesToDownload is null since it's a class-level field now
-
                     if (!filesToDownload.Any(e => e.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase)))
                     {
                         filesToDownload.Add(dinput8Entry);
-                        StatusLibrary.Log("Added dinput8.dll to update queue");
 
-                        // Make the patch button visible
-                        Dispatcher.Invoke(() =>
+                        if (isDebugMode)
                         {
-                            btnPatch.Visibility = Visibility.Visible;
-                            btnPlay.Visibility = Visibility.Collapsed;
-                        });
+                            StatusLibrary.Log("[DEBUG] Added dinput8.dll to update queue");
+                        }
+
+                        // Trigger a full integrity scan silently
+                        await RunFileIntegrityScanAsync(true);
                     }
                 }
             }
             catch (Exception ex)
             {
-                StatusLibrary.Log($"[Error] Failed to check dinput8.dll for updates: {ex.Message}");
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Failed to check dinput8.dll for updates: {ex.Message}");
+                }
+            }
+        }
+
+        private async Task RemoveConflictingFiles()
+        {
+            try
+            {
+                // Get the game directory path
+                string gamePath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+
+                // List of files that can cause conflicts
+                string[] conflictingFiles = {
+                    "MaterialDesignThemes.Wpf.dll",
+                    "Microsoft.Xaml.Behaviors.dll"
+                };
+
+                foreach (string file in conflictingFiles)
+                {
+                    string filePath = Path.Combine(gamePath, file);
+                    if (File.Exists(filePath))
+                    {
+                        try
+                        {
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Removing conflicting file: {file}");
+                            }
+
+                            File.Delete(filePath);
+                            StatusLibrary.Log($"Removed conflicting file: {file}");
+                        }
+                        catch (Exception ex)
+                        {
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Failed to remove {file}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Error removing conflicting files: {ex.Message}");
+                }
             }
         }
 
@@ -2854,7 +2939,7 @@ namespace THJPatcher
             }
 
             // First do a quick check (file existence and size only)
-            StatusLibrary.Log("Performing quick file check...");
+            StatusLibrary.Log("Starting Quick File Scan...");
             txtProgress.Visibility = Visibility.Visible;
             progressBar.Value = 0;
             bool quickCheckPassed = true;
@@ -2917,9 +3002,11 @@ namespace THJPatcher
                         var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
                         if (md5.ToUpper() != entry.md5.ToUpper())
                         {
-                            StatusLibrary.Log($"Current MD5: {md5.ToUpper()}");
-                            StatusLibrary.Log($"[Important] dinput8.dll is outdated - will be updated");
-                            StatusLibrary.Log($"Expected MD5: {entry.md5.ToUpper()}");
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Current MD5: {md5.ToUpper()}");
+                                StatusLibrary.Log($"[DEBUG] Expected MD5: {entry.md5.ToUpper()}");
+                            }
 
                             if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
                             {
@@ -2972,12 +3059,20 @@ namespace THJPatcher
                     progressBar.Value = 0;
                 });
 
-                StatusLibrary.Log("Quick file check passed. All files appear to be intact.");
+                StatusLibrary.Log("Quick scan complete - you can now play");
+
+                // Make the play button visible
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Visibility = Visibility.Collapsed;
+                    btnPlay.Visibility = Visibility.Visible;
+                });
+
                 return;
             }
 
             // If quick check failed or full scan was requested, do a full integrity check
-            StatusLibrary.Log("Performing full file integrity check...");
+            StatusLibrary.Log("Performing full file check...");
             txtProgress.Visibility = Visibility.Visible;
             progressBar.Value = 0;
             bool allFilesIntact = true;
@@ -3011,11 +3106,19 @@ namespace THJPatcher
                 {
                     if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
                     {
-                        if (isDinput8)
+                        // Only log in debug mode or for non-dinput8 files
+                        if (isDebugMode)
                         {
-                            StatusLibrary.Log($"[Important] Missing dinput8.dll detected - will be downloaded");
+                            if (isDinput8)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Missing dinput8.dll detected");
+                            }
+                            else
+                            {
+                                StatusLibrary.Log($"[DEBUG] Missing file detected: {entry.name}");
+                            }
                         }
-                        else
+                        else if (!isDinput8)
                         {
                             StatusLibrary.Log($"Missing file detected: {entry.name}");
                         }
@@ -3037,9 +3140,12 @@ namespace THJPatcher
 
                         if (isDinput8)
                         {
-                            StatusLibrary.Log($"[Important] dinput8.dll is outdated - will be updated");
-                            StatusLibrary.Log($"Current MD5: {md5.ToUpper()}");
-                            StatusLibrary.Log($"Expected MD5: {entry.md5.ToUpper()}");
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] dinput8.dll is outdated");
+                                StatusLibrary.Log($"[DEBUG] Current MD5: {md5.ToUpper()}");
+                                StatusLibrary.Log($"[DEBUG] Expected MD5: {entry.md5.ToUpper()}");
+                            }
                         }
                         else
                         {
@@ -3074,16 +3180,22 @@ namespace THJPatcher
             // Report results
             if (missingOrModifiedFiles.Count == 0 && allFilesIntact)
             {
-                StatusLibrary.Log("All files verified! No issues found.");
+                StatusLibrary.Log("Scan complete - you can now play");
 
                 // If files are intact but versions differ, update the version
                 IniLibrary.instance.LastPatchedVersion = filelist.version;
                 await Task.Run(() => IniLibrary.Save());
+
+                // Make the play button visible
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Visibility = Visibility.Collapsed;
+                    btnPlay.Visibility = Visibility.Visible;
+                });
             }
             else
             {
-                StatusLibrary.Log($"Scan completed. Found {missingOrModifiedFiles.Count} files that need to be updated.");
-                StatusLibrary.Log("Click PATCH to repair your installation.");
+                StatusLibrary.Log($"Scan complete - {missingOrModifiedFiles.Count} file(s) need updating");
                 Dispatcher.Invoke(() =>
                 {
                     btnPatch.Visibility = Visibility.Visible;
