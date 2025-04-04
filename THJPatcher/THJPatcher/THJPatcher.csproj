@@ -55,6 +55,9 @@
     <Content Include="Launcher_Window.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="patcher_changelog.md">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Resources\rof.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

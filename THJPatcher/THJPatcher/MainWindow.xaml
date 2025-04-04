@@ -499,11 +499,22 @@
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="MemoryOptimizations_Click"
-                                    ToolTip="Set EQclient.ini settings for best memory performance"/>
+                                    ToolTip="Apply memory optimizations to EverQuest settings"/>
+
+                            <Button x:Name="btnPatcherChangelog"
+                                    Content="Patcher Changelog"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="PatcherChangelog_Click"
+                                    ToolTip="View changes made to the patcher application"/>
+
+                            <!-- Add more buttons here -->
                         </WrapPanel>
                     </ScrollViewer>
                 </Grid>
             </materialDesign:Card>
         </Grid>
     </Grid>
-</Window> 
+</Window>

@@ -129,7 +129,6 @@ namespace THJPatcher
                     "Adding more duct tape to the database—should be fine...",
                     "Server hamster demands a raise, Aporia Refused...",
                     "'Balancing' pet builds...",
-
                     "I Pity the Fool...",
                     "You will not evade me.....",
                     "You have ruined your own lands..... you will not ruin mine!....",
@@ -1642,6 +1641,34 @@ namespace THJPatcher
                     // Move the temp file to the final location
                     await Task.Run(() => File.Move(tempExePath, localExePath));
 
+                    // Check for a patcher_changelog.md file in the local directory
+                    string localChangelogPath = Path.Combine(Path.GetDirectoryName(localExePath), "patcher_changelog.md");
+
+                    // Try to download the latest patcher changelog
+                    try
+                    {
+                        string changelogUrl = $"{patcherUrl}/patcher_changelog.md";
+                        var changelogData = await UtilityLibrary.Download(cts, changelogUrl);
+                        if (changelogData != null && changelogData.Length > 0)
+                        {
+                            string changelogContent = System.Text.Encoding.UTF8.GetString(changelogData);
+                            await Task.Run(() => File.WriteAllText(localChangelogPath, changelogContent));
+
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log("[DEBUG] Downloaded updated patcher_changelog.md file");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Failed to download patcher_changelog.md: {ex.Message}");
+                        }
+                        // This is not critical, so we continue with the update
+                    }
+
                     StatusLibrary.Log("Patcher update complete!");
                     StatusLibrary.Log("Restarting patcher to apply update...");
 
@@ -2831,17 +2858,8 @@ namespace THJPatcher
                         sections["[Defaults]"] = new Dictionary<string, string>();
                     }
 
-                    sections["[Defaults]"]["UseLitBatches"] = "FALSE";
                     sections["[Defaults]"]["VertexShaders"] = "TRUE";
-                    sections["[Defaults]"]["ShowDynamicLights"] = "FALSE";
-                    sections["[Defaults]"]["MipMapping"] = "FALSE";
-                    sections["[Defaults]"]["TextureCache"] = "FALSE";
-                    sections["[Defaults]"]["UseD3DTextureCompression"] = "FALSE";
-                    sections["[Defaults]"]["MultiPassLighting"] = "0";
                     sections["[Defaults]"]["PostEffects"] = "0";
-                    sections["[Defaults]"]["Shadows"] = "0";
-                    sections["[Defaults]"]["StreamItemTextures"] = "0";
-                    sections["[Defaults]"]["Bloom"] = "0";
 
                     if (!sections.ContainsKey("[Options]"))
                     {
@@ -2850,9 +2868,7 @@ namespace THJPatcher
 
                     sections["[Options]"]["MaxFPS"] = "60";
                     sections["[Options]"]["MaxBGFPS"] = "20";
-                    sections["[Options]"]["Realism"] = "0";
                     sections["[Options]"]["ClipPlane"] = "12";
-                    sections["[Options]"]["LODBias"] = "5";
 
                     // Rebuild the ini file content
                     var newContent = new List<string>();
@@ -3199,6 +3215,42 @@ namespace THJPatcher
                     btnPatch.Visibility = Visibility.Visible;
                     btnPlay.Visibility = Visibility.Collapsed;
                 });
+            }
+        }
+
+        private void PatcherChangelog_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+                string patcherChangelogPath = Path.Combine(appPath, "patcher_changelog.md");
+
+                // Check if the patcher changelog file exists
+                if (!File.Exists(patcherChangelogPath))
+                {
+                    // Create a default changelog file if it doesn't exist
+                    string defaultContent = "# April 4, 2025\n\n## System\n\n- Initial patcher changelog file created\n- This file tracks changes made to the patcher application\n\n---";
+                    File.WriteAllText(patcherChangelogPath, defaultContent);
+
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Created default patcher changelog file");
+                    }
+                }
+
+                // Read the content from the changelog file
+                string changelogContent = File.ReadAllText(patcherChangelogPath);
+
+                // Display the changelog in the ChangelogWindow
+                var dialog = new ChangelogWindow(changelogContent);
+                dialog.Title = "Patcher Changelog";
+                dialog.Owner = this;
+                dialog.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[ERROR] Failed to open patcher changelog: {ex.Message}");
+                MessageBox.Show($"Failed to open patcher changelog: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
