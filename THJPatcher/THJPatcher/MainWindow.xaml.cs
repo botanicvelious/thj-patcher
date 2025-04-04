@@ -219,93 +219,162 @@ namespace THJPatcher
             return author;
         }
 
-        public MainWindow()
+        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            InitializeComponent();
-            Loaded += MainWindow_Loaded;
-            btnPatch.Click += BtnPatch_Click;
-            btnPlay.Click += BtnPlay_Click;
-            chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
-            chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
+            isLoading = true;
+            cts = new CancellationTokenSource();
 
-            // Add KeyDown event handler for Enter key
-            this.KeyDown += MainWindow_KeyDown;
-
-            // Parse command line arguments
-            var args = Environment.GetCommandLineArgs();
-            foreach (var arg in args)
+            // Initialize logging first
+            StatusLibrary.SubscribeProgress(new StatusLibrary.ProgressHandler(StatusLibrary_ProgressChanged));
+            StatusLibrary.SubscribeLogAdd(new StatusLibrary.LogAddHandler((string message) =>
             {
-                var lowerArg = arg.ToLower();
-                switch (lowerArg)
+                Dispatcher.Invoke(() =>
                 {
-                    case "--silent":
-                    case "-silent":
-                        isSilentMode = true;
-                        break;
-                    case "--confirm":
-                    case "-confirm":
-                        isAutoConfirm = true;
-                        break;
-                    case "--debug":
-                    case "-debug":
-                        isDebugMode = true;
-                        if (isDebugMode)
-                        {
-                            StatusLibrary.Log("[DEBUG] Debug mode enabled");
-                        }
-                        break;
+                    txtLog.AppendText(message + Environment.NewLine);
+                    txtLog.ScrollToEnd();
+                    txtLog.CaretIndex = txtLog.Text.Length;
+                });
+            }));
+            StatusLibrary.SubscribePatchState(new StatusLibrary.PatchStateHandler((bool isPatchGoing) =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Content = isPatchGoing ? "CANCEL" : "PATCH";
+                });
+            }));
+
+            // Load configuration first
+            IniLibrary.Load();
+
+            // Check if changelog needs to be deleted
+            string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+            string changelogYmlPath = Path.Combine(appPath, "changelog.yml");
+            string changelogMdPath = Path.Combine(appPath, "changelog.md");
+            bool needsReinitialization = false;
+
+            if (IniLibrary.instance.DeleteChangelog == null || IniLibrary.instance.DeleteChangelog.ToLower() == "true")
+            {
+                if (File.Exists(changelogYmlPath))
+                {
+                    try
+                    {
+                        File.Delete(changelogYmlPath);
+                        StatusLibrary.Log("Outdate Changelog file detected...Changeglog will be updated during this patch.");
+                        needsReinitialization = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[ERROR] Failed to delete changelog.yml: {ex.Message}");
+                    }
+                }
+
+                if (File.Exists(changelogMdPath))
+                {
+                    try
+                    {
+                        File.Delete(changelogMdPath);
+                        needsReinitialization = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[ERROR] Failed to delete changelog.md: {ex.Message}");
+                    }
+                }
+
+                // Set DeleteChangelog to false for future runs
+                IniLibrary.instance.DeleteChangelog = "false";
+                IniLibrary.Save();
+
+                // Clear any cached changelog data
+                if (needsReinitialization)
+                {
+                    changelogs.Clear();
+                    changelogContent = "";
+                    cachedChangelogContent = null;
+                    changelogNeedsUpdate = true;
+                    hasNewChangelogs = false;
                 }
             }
 
-            // If in silent mode, hide the window and ensure console output is visible
-            if (isSilentMode)
-            {
-                this.WindowState = WindowState.Minimized;
-                this.ShowInTaskbar = false;
-                Console.WriteLine("Starting THJ Patcher in silent mode...");
-                Console.WriteLine("----------------------------------------");
-            }
+            // Remove any conflicting files
+            await RemoveConflictingFiles();
 
-            // Initialize changelogs
+            // Check for pending dinput8.dll.new file
+            await CheckForPendingDinput8();
+
+            // Check server status
+            await CheckServerStatus();
+
+            // Initialize changelogs (this will handle redownloading if files were deleted)
             InitializeChangelogs();
 
-            // Get the patcher token from Constants
-            patcherToken = Constants.PATCHER_TOKEN;
-            if (string.IsNullOrEmpty(patcherToken) || patcherToken == "__PATCHER_TOKEN__")
+            // Check for new changelogs
+            await CheckChangelogAsync();
+
+            // Load and display random message
+            LoadLoadingMessages();
+            string randomMessage = GetRandomLoadingMessage();
+            if (!string.IsNullOrEmpty(randomMessage))
             {
-                StatusLibrary.Log("[ERROR] Patcher token not properly initialized");
+                StatusLibrary.Log(randomMessage);
+                await Task.Delay(1000); // Pause after showing message
             }
 
-            // Initialize server configuration
-            serverName = "The Heroes Journey";
-            if (string.IsNullOrEmpty(serverName))
+            // Load configuration
+            isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
+            isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
+            chkAutoPlay.IsChecked = isAutoPlay;
+            chkAutoPatch.IsChecked = isAutoPatch;
+
+            // Get the full version including build number
+            var assemblyVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            version = $"v{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}.{assemblyVersion.Revision}";
+
+            // Set the window as the data context for version binding
+            this.DataContext = this;
+
+            // Create DXVK configuration for Linux/Proton compatibility
+            try
             {
-                MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the server name is not provided or screenshot this message.");
-                Close();
-                return;
+                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
+                string dxvkPath = Path.Combine(eqPath, "dxvk.conf");
+                string dxvkContent = "[heroesjourneyemu.exe]\nd3d9.shaderModel = 1";
+
+                if (!File.Exists(dxvkPath))
+                {
+                    File.WriteAllText(dxvkPath, dxvkContent);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[Error] Failed to create DXVK configuration: {ex.Message}");
             }
 
-            fileName = "heroesjourneyemu";
+            // Check for updates
+            await CheckForUpdates();
 
-            filelistUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
-            if (string.IsNullOrEmpty(filelistUrl))
+            // Only proceed with file integrity scan if no self-update is needed
+            if (!isNeedingSelfUpdate)
             {
-                MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the file list url is not provided or screenshot this message.", serverName);
-                Close();
-                return;
-            }
-            if (!filelistUrl.EndsWith("/")) filelistUrl += "/";
+                // Run a quick file scan every time the patcher starts
+                // (This includes checking dinput8.dll)
+                await RunFileIntegrityScanAsync();
 
-            patcherUrl = "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/";
-            if (string.IsNullOrEmpty(patcherUrl))
+                // If we're in auto-patch mode, start patching
+                if (isAutoPatch)
+                {
+                    isPendingPatch = true;
+                    await Task.Delay(1000);
+                    await StartPatch();
+                }
+            }
+            else
             {
-                MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the patcher url is not provided or screenshot this message.", serverName);
-                Close();
-                return;
+                // If self-update is needed, skip the file scan and auto-patch
+                StatusLibrary.Log("Self-update required. Please click PATCH to update the patcher before continuing.");
             }
-            if (!patcherUrl.EndsWith("/")) patcherUrl += "/";
 
-            buildClientVersions();
+            isLoading = false;
         }
 
         private bool IsAdministrator()
@@ -767,16 +836,25 @@ namespace THJPatcher
             // Check for updates
             await CheckForUpdates();
 
-            // Run a quick file scan every time the patcher starts
-            // (This includes checking dinput8.dll)
-            await RunFileIntegrityScanAsync();
-
-            // If we're in auto-patch mode, start patching (but not for self-updates)
-            if (isAutoPatch && !isNeedingSelfUpdate)
+            // Only proceed with file integrity scan if no self-update is needed
+            if (!isNeedingSelfUpdate)
             {
-                isPendingPatch = true;
-                await Task.Delay(1000);
-                await StartPatch();
+                // Run a quick file scan every time the patcher starts
+                // (This includes checking dinput8.dll)
+                await RunFileIntegrityScanAsync();
+
+                // If we're in auto-patch mode, start patching
+                if (isAutoPatch)
+                {
+                    isPendingPatch = true;
+                    await Task.Delay(1000);
+                    await StartPatch();
+                }
+            }
+            else
+            {
+                // If self-update is needed, skip the file scan and auto-patch
+                StatusLibrary.Log("Self-update required. Please click PATCH to update the patcher before continuing.");
             }
 
             isLoading = false;
@@ -1305,7 +1383,7 @@ namespace THJPatcher
                                 btnPatch.IsEnabled = true;
                                 btnPatch.Content = "PATCH";
                             });
-                            return;
+                            return; // Return early to avoid checking game files
                         }
                     }
                 }
@@ -3228,13 +3306,20 @@ namespace THJPatcher
                 // Check if the patcher changelog file exists
                 if (!File.Exists(patcherChangelogPath))
                 {
-                    // Create a default changelog file if it doesn't exist
-                    string defaultContent = "# April 4, 2025\n\n## System\n\n- Initial patcher changelog file created\n- This file tracks changes made to the patcher application\n\n---";
-                    File.WriteAllText(patcherChangelogPath, defaultContent);
+                    // Try to create a simple default changelog file with proper markdown formatting
+                    string defaultContent = "# March 18, 2024\n\n## Trinidy\n\n- Added \"Patcher Changelog\" feature\n- Implemented automatic download of patcher changelog during self-updates\n- Added error handling for dinput8.dll updates\n- Fixed optimization panel issues\n- Fixed self-update process to prevent file scanning before update";
 
-                    if (isDebugMode)
+                    try
                     {
-                        StatusLibrary.Log("[DEBUG] Created default patcher changelog file");
+                        File.WriteAllText(patcherChangelogPath, defaultContent);
+                        StatusLibrary.Log("Created default patcher changelog file");
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[WARNING] Could not create default patcher changelog file: {ex.Message}");
+                        MessageBox.Show("Patcher changelog file not found and could not be created. It will be downloaded during the next update.",
+                            "Changelog Missing", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
                     }
                 }
 
