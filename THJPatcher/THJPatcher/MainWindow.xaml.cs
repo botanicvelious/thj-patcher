@@ -731,6 +731,9 @@ namespace THJPatcher
         // Add a new method to complete the initialization process
         private async Task CompleteInitialization()
         {
+            // Clear any existing download list to start fresh
+            filesToDownload.Clear();
+
             // Check if changelog needs to be deleted
             string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
             string changelogYmlPath = Path.Combine(appPath, "changelog.yml");
@@ -1814,58 +1817,65 @@ namespace THJPatcher
                 StatusLibrary.Log($"[Warning] Failed to process delete.txt: {ex.Message}");
             }
 
-            // Calculate total files to check
-            int totalFiles = filelist.downloads.Count;
-            int checkedFiles = 0;
-            filesToDownload.Clear(); // Clear the existing list
-
-            // First scan - check all files
-            StatusLibrary.Log("Scanning files...");
-            foreach (var entry in filelist.downloads)
+            // Only scan for new files if we haven't already identified files to download
+            if (filesToDownload.Count == 0)
             {
-                if (isPatchCancelled)
-                {
-                    StatusLibrary.Log("Scanning cancelled.");
-                    return;
-                }
+                // Calculate total files to check
+                int totalFiles = filelist.downloads.Count;
+                int checkedFiles = 0;
 
-                StatusLibrary.SetProgress((int)((double)checkedFiles / totalFiles * 10000));
-                checkedFiles++;
-
-                // Skip heroesjourneyemu.exe as it's the patcher itself
-                if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
+                // First scan - check all files
+                StatusLibrary.Log("Scanning files...");
+                foreach (var entry in filelist.downloads)
                 {
-                    continue;
-                }
-
-                var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
-                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
-                {
-                    StatusLibrary.Log($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
-                    continue;
-                }
-
-                bool needsDownload = false;
-
-                if (!await Task.Run(() => File.Exists(path)))
-                {
-                    StatusLibrary.Log($"Missing file detected: {entry.name}");
-                    needsDownload = true;
-                }
-                else
-                {
-                    var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
-                    if (md5.ToUpper() != entry.md5.ToUpper())
+                    if (isPatchCancelled)
                     {
-                        StatusLibrary.Log($"Modified file detected: {entry.name}");
+                        StatusLibrary.Log("Scanning cancelled.");
+                        return;
+                    }
+
+                    StatusLibrary.SetProgress((int)((double)checkedFiles / totalFiles * 10000));
+                    checkedFiles++;
+
+                    // Skip heroesjourneyemu.exe as it's the patcher itself
+                    if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+                    if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
+                    {
+                        StatusLibrary.Log($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
+                        continue;
+                    }
+
+                    bool needsDownload = false;
+
+                    if (!await Task.Run(() => File.Exists(path)))
+                    {
+                        StatusLibrary.Log($"Missing file detected: {entry.name}");
                         needsDownload = true;
                     }
-                }
+                    else
+                    {
+                        var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                        if (md5.ToUpper() != entry.md5.ToUpper())
+                        {
+                            StatusLibrary.Log($"Modified file detected: {entry.name}");
+                            needsDownload = true;
+                        }
+                    }
 
-                if (needsDownload)
-                {
-                    filesToDownload.Add(entry);
+                    if (needsDownload)
+                    {
+                        filesToDownload.Add(entry);
+                    }
                 }
+            }
+            else
+            {
+                StatusLibrary.Log($"Using {filesToDownload.Count} previously identified files that need updating.");
             }
 
             // Calculate total patch size for downloads
@@ -1883,7 +1893,7 @@ namespace THJPatcher
             double patchedBytes = 0;
             bool hasErrors = false;
 
-            // If no files need downloading, we're done
+            // If no files need downloading after all, we're done
             if (filesToDownload.Count == 0)
             {
                 StatusLibrary.Log("All files are up to date.");
@@ -3063,13 +3073,13 @@ namespace THJPatcher
                         StatusLibrary.Log($"Missing file detected: {entry.name}");
                         missingOrModifiedFiles.Add(entry);
 
-                        // Immediately add to download queue for UI files to ensure they're patched
-                        if (isUiFile && !filesToDownload.Any(f => f.name == entry.name))
+                        // Add to download queue regardless of file type to ensure patching happens
+                        if (!filesToDownload.Any(f => f.name == entry.name))
                         {
                             filesToDownload.Add(entry);
                             if (isDebugMode)
                             {
-                                StatusLibrary.Log($"[DEBUG] Added UI file to download queue: {entry.name}");
+                                StatusLibrary.Log($"[DEBUG] Added missing file to download queue: {entry.name}");
                             }
                         }
                     }
@@ -3135,6 +3145,34 @@ namespace THJPatcher
                 txtProgress.Visibility = Visibility.Collapsed;
                 progressBar.Value = 0;
             });
+
+            // If there are any files to download, show the patch button and hide play button
+            if (filesToDownload.Count > 0)
+            {
+                StatusLibrary.Log($"Found {filesToDownload.Count} file(s) that need to be patched.");
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Visibility = Visibility.Visible;
+                    btnPlay.Visibility = Visibility.Collapsed;
+                });
+
+                // Set integrity check status
+                IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
+                IniLibrary.instance.QuickCheckStatus = "failed";
+                await Task.Run(() => IniLibrary.Save());
+
+                // Immediately start the patch process if auto-patch is enabled
+                if (isAutoPatch && !isNeedingSelfUpdate)
+                {
+                    isPendingPatch = true;
+                    await Task.Delay(1000);
+                    await StartPatch();
+                    return;
+                }
+
+                // Return here to prevent continuing with the scan
+                return;
+            }
 
             // If quick check passed and this is an automatic scan, we're done
             if (quickCheckPassed && !fullScanOnly)
