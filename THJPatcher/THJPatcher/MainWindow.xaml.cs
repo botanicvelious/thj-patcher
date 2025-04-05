@@ -2988,6 +2988,8 @@ namespace THJPatcher
 
                 // Check if this is dinput8.dll for special handling
                 bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
+                bool isUiFile = entry.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
+                                 entry.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase);
 
                 if (!await Task.Run(() => File.Exists(path)))
                 {
@@ -3000,12 +3002,22 @@ namespace THJPatcher
                     {
                         StatusLibrary.Log($"[Important] Missing dinput8.dll detected - will be downloaded");
                     }
-                    else
+                    else if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
                     {
+                        // Only log once and ensure it gets added to the download list
                         StatusLibrary.Log($"Missing file detected: {entry.name}");
-                    }
+                        missingOrModifiedFiles.Add(entry);
 
-                    missingOrModifiedFiles.Add(entry);
+                        // Immediately add to download queue for UI files to ensure they're patched
+                        if (isUiFile && !filesToDownload.Any(f => f.name == entry.name))
+                        {
+                            filesToDownload.Add(entry);
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Added UI file to download queue: {entry.name}");
+                            }
+                        }
+                    }
                     quickCheckPassed = false;
                 }
                 else
@@ -3045,6 +3057,17 @@ namespace THJPatcher
                             }
                             StatusLibrary.Log($"Size mismatch detected: {entry.name}");
                             missingOrModifiedFiles.Add(entry);
+
+                            // Add UI files with mismatched size to download queue
+                            if (isUiFile && !filesToDownload.Any(f => f.name == entry.name))
+                            {
+                                filesToDownload.Add(entry);
+                                if (isDebugMode)
+                                {
+                                    StatusLibrary.Log($"[DEBUG] Added mismatched UI file to download queue: {entry.name}");
+                                }
+                            }
+
                             quickCheckPassed = false;
                         }
                     }
@@ -3081,6 +3104,48 @@ namespace THJPatcher
                     btnPatch.Visibility = Visibility.Collapsed;
                     btnPlay.Visibility = Visibility.Visible;
                 });
+
+                return;
+            }
+
+            // If we have UI files already queued for download, skip the full scan
+            if (missingOrModifiedFiles.Any(f => f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
+                                            f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase)))
+            {
+                StatusLibrary.Log("Missing UI files detected - initiating patch...");
+
+                // Add all missing files to download queue if they're not already there
+                foreach (var entry in missingOrModifiedFiles)
+                {
+                    if (!filesToDownload.Any(f => f.name == entry.name))
+                    {
+                        filesToDownload.Add(entry);
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Added missing file to download queue: {entry.name}");
+                        }
+                    }
+                }
+
+                // Update integrity check status
+                IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
+                IniLibrary.instance.QuickCheckStatus = "failed";
+                await Task.Run(() => IniLibrary.Save());
+
+                StatusLibrary.Log($"{missingOrModifiedFiles.Count} file(s) need updating");
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Visibility = Visibility.Visible;
+                    btnPlay.Visibility = Visibility.Collapsed;
+                });
+
+                // If in auto-patch mode, start patching
+                if (isAutoPatch)
+                {
+                    isPendingPatch = true;
+                    await Task.Delay(1000);
+                    await StartPatch();
+                }
 
                 return;
             }
