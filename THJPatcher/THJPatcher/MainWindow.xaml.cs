@@ -660,6 +660,77 @@ namespace THJPatcher
             // Load configuration first
             IniLibrary.Load();
 
+            // Display a welcome message
+            LoadLoadingMessages();
+            string randomMessage = GetRandomLoadingMessage();
+            if (!string.IsNullOrEmpty(randomMessage))
+            {
+                StatusLibrary.Log(randomMessage);
+                await Task.Delay(1000); // Pause after showing message
+            }
+
+            // Get the full version including build number
+            var assemblyVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            version = $"v{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}.{assemblyVersion.Revision}";
+
+            // Set the window as the data context for version binding
+            this.DataContext = this;
+
+            // Check for patcher updates first, before any other operations
+            if (!isDebugMode)
+            {
+                // First check if we need to update the patcher
+                StatusLibrary.Log("Checking for updates...");
+                StatusLibrary.Log("Checking patcher version...");
+
+                string url = $"{patcherUrl}{fileName}-hash.txt";
+                try
+                {
+                    var data = await UtilityLibrary.Download(cts, url);
+                    string response = System.Text.Encoding.Default.GetString(data).Trim().ToUpperInvariant();
+
+                    if (!string.IsNullOrEmpty(response))
+                    {
+                        myHash = UtilityLibrary.GetMD5(System.Windows.Forms.Application.ExecutablePath).ToUpperInvariant();
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Remote hash: {response}");
+                            StatusLibrary.Log($"[DEBUG] Local hash:  {myHash}");
+                        }
+                        if (response != myHash)
+                        {
+                            isNeedingSelfUpdate = true;
+                            Dispatcher.Invoke(() =>
+                            {
+                                StatusLibrary.Log("Patcher update available! Click PATCH to begin.");
+                                btnPatch.Visibility = Visibility.Visible;
+                                btnPlay.Visibility = Visibility.Collapsed;
+                                btnPatch.IsEnabled = true;
+                                btnPatch.Content = "PATCH";
+                            });
+                            isLoading = false;
+                            // Exit early if patcher needs updating - don't continue with the rest of initialization
+                            return;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    StatusLibrary.Log($"[Error] Failed to check patcher version: {ex.Message}");
+                }
+            }
+            else
+            {
+                StatusLibrary.Log("[DEBUG] Debug mode enabled - skipping patcher self-update check");
+            }
+
+            // Only proceed with remaining initialization if no patcher update is needed
+            await CompleteInitialization();
+        }
+
+        // Add a new method to complete the initialization process
+        private async Task CompleteInitialization()
+        {
             // Check if changelog needs to be deleted
             string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
             string changelogYmlPath = Path.Combine(appPath, "changelog.yml");
@@ -725,27 +796,11 @@ namespace THJPatcher
             // Check for new changelogs
             await CheckChangelogAsync();
 
-            // Load and display random message
-            LoadLoadingMessages();
-            string randomMessage = GetRandomLoadingMessage();
-            if (!string.IsNullOrEmpty(randomMessage))
-            {
-                StatusLibrary.Log(randomMessage);
-                await Task.Delay(1000); // Pause after showing message
-            }
-
             // Load configuration
             isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
             chkAutoPlay.IsChecked = isAutoPlay;
             chkAutoPatch.IsChecked = isAutoPatch;
-
-            // Get the full version including build number
-            var assemblyVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            version = $"v{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}.{assemblyVersion.Revision}";
-
-            // Set the window as the data context for version binding
-            this.DataContext = this;
 
             // Create DXVK configuration for Linux/Proton compatibility
             try
@@ -764,7 +819,7 @@ namespace THJPatcher
                 StatusLibrary.Log($"[Error] Failed to create DXVK configuration: {ex.Message}");
             }
 
-            // Check for updates
+            // Check for updates to game files
             await CheckForUpdates();
 
             // Run a quick file scan every time the patcher starts
