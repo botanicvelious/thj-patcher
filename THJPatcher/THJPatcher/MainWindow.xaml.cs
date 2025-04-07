@@ -1896,7 +1896,7 @@ namespace THJPatcher
                 return total == 0 ? 1 : total;
             });
 
-            double currentBytes = 1;
+            double currentBytes = 0; // Start at 0, not 1
             double patchedBytes = 0;
             bool hasErrors = false;
 
@@ -1908,12 +1908,43 @@ namespace THJPatcher
                 return;
             }
 
+            // Group files by type for improved UI feedback
+            var mapFiles = filesToDownload.Where(f =>
+                f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var dllFiles = filesToDownload.Where(f =>
+                f.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var otherFiles = filesToDownload.Except(mapFiles).Except(dllFiles).ToList();
+
+            // Log download counts by type
+            if (mapFiles.Any())
+                StatusLibrary.Log($"Downloading {mapFiles.Count} map files...");
+            if (dllFiles.Any())
+                StatusLibrary.Log($"Downloading {dllFiles.Count} DLL files...");
+            if (otherFiles.Any())
+                StatusLibrary.Log($"Downloading {otherFiles.Count} other game files...");
+
             StatusLibrary.Log($"Found {filesToDownload.Count} files to update.");
-            await Task.Delay(1000); // Pause to show the message
+            await Task.Delay(500); // Shorter pause to show the message
 
             // Download and patch files
             if (!filelist.downloadprefix.EndsWith("/")) filelist.downloadprefix += "/";
-            foreach (var entry in filesToDownload)
+
+            // Process files in a specific order: DLLs first, then other files, maps last
+            var orderedFiles = new List<FileEntry>();
+            orderedFiles.AddRange(dllFiles);
+            orderedFiles.AddRange(otherFiles);
+            orderedFiles.AddRange(mapFiles);
+
+            int processedFiles = 0;
+            int totalFiles = filesToDownload.Count;
+            int loggedMapFiles = 0;
+            const int maxLoggedMapFiles = 20; // Limit map file logging
+
+            foreach (var entry in orderedFiles)
             {
                 if (isPatchCancelled)
                 {
@@ -1921,7 +1952,22 @@ namespace THJPatcher
                     return;
                 }
 
-                StatusLibrary.SetProgress((int)(currentBytes / totalBytes * 10000));
+                processedFiles++;
+
+                // Update progress bar with both file count and byte count for better feedback
+                double fileProgress = (double)processedFiles / totalFiles;
+                double byteProgress = currentBytes / totalBytes;
+                double combinedProgress = (fileProgress + byteProgress) / 2.0 * 10000;
+
+                // Ensure progress is shown throughout the operation
+                StatusLibrary.SetProgress((int)combinedProgress);
+
+                // For map files, limit the log output
+                bool isMapFile = entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                 entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                                 entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+
+                bool shouldLogFile = !isMapFile || (isMapFile && loggedMapFiles < maxLoggedMapFiles);
 
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
 
@@ -2100,6 +2146,41 @@ namespace THJPatcher
                 int retryCount = 0;
                 const int maxRetries = 3;
 
+                // For map files, only update UI after every few files to avoid UI freeze
+                if (isMapFile)
+                {
+                    if (loggedMapFiles == 0)
+                    {
+                        StatusLibrary.Log("Downloading map files...");
+                    }
+
+                    loggedMapFiles++;
+
+                    // Only update UI for some map files to reduce UI overhead
+                    if (loggedMapFiles > maxLoggedMapFiles && loggedMapFiles % 10 != 0)
+                    {
+                        shouldLogFile = false;
+                    }
+
+                    // Force UI update every 10 map files to keep progress visible
+                    if (loggedMapFiles % 10 == 0)
+                    {
+                        // Force UI update by dispatching to UI thread
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            progressBar.Value = combinedProgress / 100;
+                            // Update TextBox
+                            if (autoScroll)
+                            {
+                                txtLog.ScrollToEnd();
+                            }
+                        });
+
+                        // Short delay to let UI catch up
+                        await Task.Delay(1);
+                    }
+                }
+
                 while (!downloadSuccess && retryCount < maxRetries)
                 {
                     // Try backup URL first since we know files exist there
@@ -2113,7 +2194,10 @@ namespace THJPatcher
                         response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
                         if (response != "")
                         {
-                            StatusLibrary.Log($"Failed to download {entry.name} ({generateSize(entry.size)}): {response}");
+                            if (shouldLogFile)
+                            {
+                                StatusLibrary.Log($"Failed to download {entry.name} ({generateSize(entry.size)}): {response}");
+                            }
                             retryCount++;
                             continue;
                         }
@@ -2122,7 +2206,10 @@ namespace THJPatcher
                     // Verify the downloaded file's MD5
                     if (!await Task.Run(() => File.Exists(path)))
                     {
-                        StatusLibrary.Log($"[Error] Failed to create file {entry.name}");
+                        if (shouldLogFile)
+                        {
+                            StatusLibrary.Log($"[Error] Failed to create file {entry.name}");
+                        }
                         retryCount++;
                         continue;
                     }
@@ -2130,11 +2217,17 @@ namespace THJPatcher
                     var downloadedMd5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
                     if (downloadedMd5.ToUpper() != entry.md5.ToUpper())
                     {
-                        StatusLibrary.Log($"[Warning] MD5 mismatch for {entry.name}. Expected: {entry.md5.ToUpper()}, Got: {downloadedMd5.ToUpper()}");
+                        if (shouldLogFile)
+                        {
+                            StatusLibrary.Log($"[Warning] MD5 mismatch for {entry.name}. Expected: {entry.md5.ToUpper()}, Got: {downloadedMd5.ToUpper()}");
+                        }
                         retryCount++;
                         if (retryCount < maxRetries)
                         {
-                            StatusLibrary.Log($"Retrying download of {entry.name} (attempt {retryCount + 1}/{maxRetries})...");
+                            if (shouldLogFile)
+                            {
+                                StatusLibrary.Log($"Retrying download of {entry.name} (attempt {retryCount + 1}/{maxRetries})...");
+                            }
                             await Task.Delay(1000); // Wait a bit before retrying
                             continue;
                         }
@@ -2143,7 +2236,32 @@ namespace THJPatcher
                     }
 
                     downloadSuccess = true;
-                    StatusLibrary.Log($"{entry.name} ({generateSize(entry.size)})");
+                    if (shouldLogFile)
+                    {
+                        StatusLibrary.Log($"{entry.name} ({generateSize(entry.size)})");
+                    }
+
+                    // Every 20 files for non-map files, provide a summary
+                    if (!isMapFile && processedFiles % 20 == 0)
+                    {
+                        StatusLibrary.Log($"Progress: {processedFiles}/{totalFiles} files processed ({(int)(processedFiles * 100.0 / totalFiles)}%)");
+                    }
+
+                    // For map files, show a summary every 50 files
+                    if (isMapFile && loggedMapFiles % 50 == 0)
+                    {
+                        StatusLibrary.Log($"Downloaded {loggedMapFiles} map files so far");
+
+                        // Make sure UI is updated
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            if (autoScroll)
+                            {
+                                txtLog.ScrollToEnd();
+                            }
+                        });
+                    }
+
                     currentBytes += entry.size;
                     patchedBytes += entry.size;
                 }
@@ -2151,8 +2269,23 @@ namespace THJPatcher
                 if (!downloadSuccess)
                 {
                     hasErrors = true;
-                    StatusLibrary.Log($"[Error] Failed to download and verify {entry.name} after {maxRetries} attempts");
+                    if (shouldLogFile)
+                    {
+                        StatusLibrary.Log($"[Error] Failed to download and verify {entry.name} after {maxRetries} attempts");
+                    }
                 }
+
+                // Periodically update UI thread to keep it responsive
+                if (processedFiles % 20 == 0)
+                {
+                    await Task.Delay(1); // Small delay to allow UI to process
+                }
+            }
+
+            // After downloading map files, show a summary
+            if (loggedMapFiles > maxLoggedMapFiles)
+            {
+                StatusLibrary.Log($"Downloaded a total of {loggedMapFiles} map files");
             }
 
             // Handle file deletions
@@ -2190,7 +2323,17 @@ namespace THJPatcher
                 }
             }
 
+            // Final progress update
             StatusLibrary.SetProgress(10000);
+
+            // Make sure the UI is updated
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (autoScroll)
+                {
+                    txtLog.ScrollToEnd();
+                }
+            });
 
             // Update LastPatchedVersion and save configuration
             if (hasErrors)
