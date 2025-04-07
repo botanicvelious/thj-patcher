@@ -2969,6 +2969,12 @@ namespace THJPatcher
             StatusLibrary.Log("Starting file integrity scan...");
             await Task.Delay(1000);
 
+            // Reset cancellation token source to ensure no previous cancellations affect this scan
+            if (cts.IsCancellationRequested)
+            {
+                cts = new CancellationTokenSource();
+            }
+
             // Download and parse the filelist
             string suffix = "rof";
             string primaryUrl = filelistUrl;
@@ -2977,6 +2983,7 @@ namespace THJPatcher
             string filelistResponse = "";
 
             // Try primary URL first
+            StatusLibrary.Log("Downloading file list...");
             filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
 
             // If primary URL fails, try fallback
@@ -3019,17 +3026,34 @@ namespace THJPatcher
 
             // First do a quick check (file existence and size only)
             StatusLibrary.Log("Starting Quick File Scan...");
-            txtProgress.Visibility = Visibility.Visible;
-            progressBar.Value = 0;
+
+            Dispatcher.Invoke(() =>
+            {
+                txtProgress.Visibility = Visibility.Visible;
+                progressBar.Value = 0;
+                txtProgress.Text = "Quick scan: 0%";
+            });
+
             bool quickCheckPassed = true;
             List<FileEntry> missingOrModifiedFiles = new List<FileEntry>();
 
             int totalFiles = filelist.downloads.Count;
             int checkedFiles = 0;
 
+            // Keep track of processed files for debugging
+            Dictionary<string, bool> processedFiles = new Dictionary<string, bool>();
+
             foreach (var entry in filelist.downloads)
             {
+                // Skip heroesjourneyemu.exe as it's the patcher itself
+                if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    checkedFiles++;
+                    continue;
+                }
+
                 checkedFiles++;
+
                 // Update progress bar (0-100 range)
                 int progress = (int)((double)checkedFiles / totalFiles * 100);
                 Dispatcher.Invoke(() =>
@@ -3038,11 +3062,8 @@ namespace THJPatcher
                     txtProgress.Text = $"Quick scan: {progress}%";
                 });
 
-                // Skip heroesjourneyemu.exe as it's the patcher itself
-                if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+                // Mark this file as processed
+                processedFiles[entry.name] = true;
 
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
                 if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
@@ -3051,11 +3072,20 @@ namespace THJPatcher
                     continue;
                 }
 
-                // Check if this is dinput8.dll for special handling
+                // Check if this is a special file type that needs additional handling
                 bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
                 bool isUiFile = entry.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
                                  entry.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase);
+                bool isMapFile = entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                                 entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                 entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
 
+                if (isMapFile && isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Processing map file: {entry.name}");
+                }
+
+                bool needsDownload = false;
                 if (!await Task.Run(() => File.Exists(path)))
                 {
                     if (isDebugMode)
@@ -3067,22 +3097,16 @@ namespace THJPatcher
                     {
                         StatusLibrary.Log($"[Important] Missing dinput8.dll detected - will be downloaded");
                     }
-                    else if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
+                    else if (isMapFile)
                     {
-                        // Only log once and ensure it gets added to the download list
-                        StatusLibrary.Log($"Missing file detected: {entry.name}");
-                        missingOrModifiedFiles.Add(entry);
-
-                        // Add to download queue regardless of file type to ensure patching happens
-                        if (!filesToDownload.Any(f => f.name == entry.name))
-                        {
-                            filesToDownload.Add(entry);
-                            if (isDebugMode)
-                            {
-                                StatusLibrary.Log($"[DEBUG] Added missing file to download queue: {entry.name}");
-                            }
-                        }
+                        StatusLibrary.Log($"Missing map file detected: {entry.name}");
                     }
+                    else
+                    {
+                        StatusLibrary.Log($"Missing file detected: {entry.name}");
+                    }
+
+                    needsDownload = true;
                     quickCheckPassed = false;
                 }
                 else
@@ -3099,10 +3123,7 @@ namespace THJPatcher
                                 StatusLibrary.Log($"[DEBUG] Expected MD5: {entry.md5.ToUpper()}");
                             }
 
-                            if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
-                            {
-                                missingOrModifiedFiles.Add(entry);
-                            }
+                            needsDownload = true;
                             quickCheckPassed = false;
                         }
                         else if (isDebugMode)
@@ -3121,23 +3142,42 @@ namespace THJPatcher
                                 StatusLibrary.Log($"[DEBUG] File size mismatch detected: {entry.name}");
                             }
                             StatusLibrary.Log($"Size mismatch detected: {entry.name}");
-                            missingOrModifiedFiles.Add(entry);
 
-                            // Add UI files with mismatched size to download queue
-                            if (isUiFile && !filesToDownload.Any(f => f.name == entry.name))
-                            {
-                                filesToDownload.Add(entry);
-                                if (isDebugMode)
-                                {
-                                    StatusLibrary.Log($"[DEBUG] Added mismatched UI file to download queue: {entry.name}");
-                                }
-                            }
-
+                            needsDownload = true;
                             quickCheckPassed = false;
                         }
                     }
                 }
+
+                // If file needs download, add it to the right lists
+                if (needsDownload)
+                {
+                    // Add to missing/modified files list if not already there
+                    if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
+                    {
+                        missingOrModifiedFiles.Add(entry);
+                    }
+
+                    // Add to download queue if not already there (always add UI files and map files)
+                    if ((isUiFile || isMapFile || isDinput8) && !filesToDownload.Any(f => f.name == entry.name))
+                    {
+                        filesToDownload.Add(entry);
+                        if (isDebugMode)
+                        {
+                            string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : "UI");
+                            StatusLibrary.Log($"[DEBUG] Added {fileType} file to download queue: {entry.name}");
+                        }
+                    }
+                }
             }
+
+            // Final progress update to ensure we show 100%
+            Dispatcher.Invoke(() =>
+            {
+                progressBar.Value = 100;
+                txtProgress.Text = "Quick scan: 100%";
+            });
+            await Task.Delay(250); // Small delay to let the UI update
 
             // Hide progress bar after quick check
             Dispatcher.Invoke(() =>
@@ -3154,6 +3194,7 @@ namespace THJPatcher
                 {
                     btnPatch.Visibility = Visibility.Visible;
                     btnPlay.Visibility = Visibility.Collapsed;
+                    btnPatch.IsEnabled = true;
                 });
 
                 // Set integrity check status
@@ -3161,16 +3202,35 @@ namespace THJPatcher
                 IniLibrary.instance.QuickCheckStatus = "failed";
                 await Task.Run(() => IniLibrary.Save());
 
+                // Print out map files detected (for debugging)
+                if (isDebugMode)
+                {
+                    var mapFiles = filesToDownload.Where(f =>
+                        f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                    if (mapFiles.Any())
+                    {
+                        StatusLibrary.Log($"[DEBUG] Found {mapFiles.Count} map files that need downloading:");
+                        foreach (var map in mapFiles.Take(10))
+                        {
+                            StatusLibrary.Log($"[DEBUG] Map: {map.name}");
+                        }
+                        if (mapFiles.Count > 10)
+                        {
+                            StatusLibrary.Log($"[DEBUG] And {mapFiles.Count - 10} more map files...");
+                        }
+                    }
+                }
+
                 // Immediately start the patch process if auto-patch is enabled
                 if (isAutoPatch && !isNeedingSelfUpdate)
                 {
                     isPendingPatch = true;
                     await Task.Delay(1000);
                     await StartPatch();
-                    return;
                 }
-
-                // Return here to prevent continuing with the scan
                 return;
             }
 
@@ -3182,197 +3242,161 @@ namespace THJPatcher
                 IniLibrary.instance.QuickCheckStatus = "success";
                 await Task.Run(() => IniLibrary.Save());
 
-                // Hide progress bar
+                StatusLibrary.Log("Quick scan complete - all files are up to date");
+
+                // Make the play button visible
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Visibility = Visibility.Collapsed;
+                    btnPlay.Visibility = Visibility.Visible;
+                    btnPlay.IsEnabled = true;
+                });
+
+                return;
+            }
+
+            // If full scan was requested, continue with MD5 checks
+            if (fullScanOnly)
+            {
+                StatusLibrary.Log("Performing full file check...");
+                Dispatcher.Invoke(() =>
+                {
+                    txtProgress.Visibility = Visibility.Visible;
+                    progressBar.Value = 0;
+                    txtProgress.Text = "Full scan: 0%";
+                });
+
+                bool allFilesIntact = true;
+                checkedFiles = 0;
+
+                foreach (var entry in filelist.downloads)
+                {
+                    // Skip heroesjourneyemu.exe as it's the patcher itself
+                    if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        checkedFiles++;
+                        continue;
+                    }
+
+                    checkedFiles++;
+                    int progress = (int)((double)checkedFiles / totalFiles * 100);
+                    Dispatcher.Invoke(() =>
+                    {
+                        progressBar.Value = progress;
+                        txtProgress.Text = $"Full scan: {progress}%";
+                    });
+
+                    var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+                    if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
+                    {
+                        continue;
+                    }
+
+                    // Check if this is a special file type
+                    bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
+                    bool isMapFile = entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                                    entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                    entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+
+                    bool needsDownload = false;
+                    if (!await Task.Run(() => File.Exists(path)))
+                    {
+                        if (isDebugMode)
+                        {
+                            string fileType = isDinput8 ? "dinput8.dll" : (isMapFile ? "map file" : "file");
+                            StatusLibrary.Log($"[DEBUG] Missing {fileType} detected: {entry.name}");
+                        }
+
+                        StatusLibrary.Log($"Missing file detected: {entry.name}");
+                        needsDownload = true;
+                        allFilesIntact = false;
+                    }
+                    else
+                    {
+                        var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                        if (md5.ToUpper() != entry.md5.ToUpper())
+                        {
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] MD5 mismatch for {entry.name}");
+                                StatusLibrary.Log($"[DEBUG] Expected: {entry.md5.ToUpper()}");
+                                StatusLibrary.Log($"[DEBUG] Got: {md5.ToUpper()}");
+                            }
+
+                            StatusLibrary.Log($"Content mismatch detected: {entry.name}");
+                            needsDownload = true;
+                            allFilesIntact = false;
+                        }
+                    }
+
+                    // If file needs download, add it to the download queue
+                    if (needsDownload && !filesToDownload.Any(f => f.name == entry.name))
+                    {
+                        filesToDownload.Add(entry);
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Added file to download queue from full scan: {entry.name}");
+                        }
+                    }
+                }
+
+                // Update integrity check timestamp and status
+                IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
+                IniLibrary.instance.QuickCheckStatus = allFilesIntact ? "success" : "failed";
+                await Task.Run(() => IniLibrary.Save());
+
+                // Hide progress bar after full check
                 Dispatcher.Invoke(() =>
                 {
                     txtProgress.Visibility = Visibility.Collapsed;
                     progressBar.Value = 0;
                 });
 
-                StatusLibrary.Log("Quick scan complete - you can now play");
-
-                // Make the play button visible
-                Dispatcher.Invoke(() =>
+                // Report results
+                if (filesToDownload.Count > 0)
                 {
-                    btnPatch.Visibility = Visibility.Collapsed;
-                    btnPlay.Visibility = Visibility.Visible;
-                });
-
-                return;
-            }
-
-            // If we have UI files already queued for download, skip the full scan
-            if (missingOrModifiedFiles.Any(f => f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
-                                            f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase)))
-            {
-                StatusLibrary.Log("Missing UI files detected - initiating patch...");
-
-                // Add all missing files to download queue if they're not already there
-                foreach (var entry in missingOrModifiedFiles)
-                {
-                    if (!filesToDownload.Any(f => f.name == entry.name))
+                    StatusLibrary.Log($"Full scan complete - {filesToDownload.Count} file(s) need updating");
+                    Dispatcher.Invoke(() =>
                     {
-                        filesToDownload.Add(entry);
-                        if (isDebugMode)
-                        {
-                            StatusLibrary.Log($"[DEBUG] Added missing file to download queue: {entry.name}");
-                        }
+                        btnPatch.Visibility = Visibility.Visible;
+                        btnPlay.Visibility = Visibility.Collapsed;
+                        btnPatch.IsEnabled = true;
+                    });
+
+                    // If in auto-patch mode, start patching
+                    if (isAutoPatch)
+                    {
+                        isPendingPatch = true;
+                        await Task.Delay(1000);
+                        await StartPatch();
                     }
                 }
-
-                // Update integrity check status
-                IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
-                IniLibrary.instance.QuickCheckStatus = "failed";
-                await Task.Run(() => IniLibrary.Save());
-
-                StatusLibrary.Log($"{missingOrModifiedFiles.Count} file(s) need updating");
-                Dispatcher.Invoke(() =>
+                else if (allFilesIntact)
                 {
-                    btnPatch.Visibility = Visibility.Visible;
-                    btnPlay.Visibility = Visibility.Collapsed;
-                });
+                    StatusLibrary.Log("Full scan complete - all files are up to date");
 
-                // If in auto-patch mode, start patching
-                if (isAutoPatch)
-                {
-                    isPendingPatch = true;
-                    await Task.Delay(1000);
-                    await StartPatch();
-                }
+                    // If files are intact but versions differ, update the version
+                    IniLibrary.instance.LastPatchedVersion = filelist.version;
+                    await Task.Run(() => IniLibrary.Save());
 
-                return;
-            }
-
-            // If quick check failed or full scan was requested, do a full integrity check
-            StatusLibrary.Log("Performing full file check...");
-            txtProgress.Visibility = Visibility.Visible;
-            progressBar.Value = 0;
-            bool allFilesIntact = true;
-            checkedFiles = 0;
-
-            foreach (var entry in filelist.downloads)
-            {
-                checkedFiles++;
-                int progress = (int)((double)checkedFiles / totalFiles * 100);
-                Dispatcher.Invoke(() =>
-                {
-                    progressBar.Value = progress;
-                    txtProgress.Text = $"Checking files: {progress}%";
-                });
-
-                if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
-                if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
-                {
-                    continue;
-                }
-
-                // Check if this is dinput8.dll for special handling
-                bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
-
-                if (!await Task.Run(() => File.Exists(path)))
-                {
-                    if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
+                    // Make the play button visible
+                    Dispatcher.Invoke(() =>
                     {
-                        // Only log in debug mode or for non-dinput8 files
-                        if (isDebugMode)
-                        {
-                            if (isDinput8)
-                            {
-                                StatusLibrary.Log($"[DEBUG] Missing dinput8.dll detected");
-                            }
-                            else
-                            {
-                                StatusLibrary.Log($"[DEBUG] Missing file detected: {entry.name}");
-                            }
-                        }
-                        else if (!isDinput8)
-                        {
-                            StatusLibrary.Log($"Missing file detected: {entry.name}");
-                        }
-                        missingOrModifiedFiles.Add(entry);
-                    }
-                    allFilesIntact = false;
+                        btnPatch.Visibility = Visibility.Collapsed;
+                        btnPlay.Visibility = Visibility.Visible;
+                        btnPlay.IsEnabled = true;
+                    });
                 }
                 else
                 {
-                    var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
-                    if (md5.ToUpper() != entry.md5.ToUpper())
+                    StatusLibrary.Log("Scan complete - some files may need updating");
+                    Dispatcher.Invoke(() =>
                     {
-                        if (isDebugMode)
-                        {
-                            StatusLibrary.Log($"[DEBUG] MD5 mismatch for {entry.name}");
-                            StatusLibrary.Log($"[DEBUG] Expected: {entry.md5.ToUpper()}");
-                            StatusLibrary.Log($"[DEBUG] Got: {md5.ToUpper()}");
-                        }
-
-                        if (isDinput8)
-                        {
-                            if (isDebugMode)
-                            {
-                                StatusLibrary.Log($"[DEBUG] dinput8.dll is outdated");
-                                StatusLibrary.Log($"[DEBUG] Current MD5: {md5.ToUpper()}");
-                                StatusLibrary.Log($"[DEBUG] Expected MD5: {entry.md5.ToUpper()}");
-                            }
-                        }
-                        else
-                        {
-                            StatusLibrary.Log($"Content mismatch detected: {entry.name}");
-                        }
-
-                        if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
-                        {
-                            missingOrModifiedFiles.Add(entry);
-                        }
-                        allFilesIntact = false;
-                    }
-                    else if (isDinput8 && isDebugMode)
-                    {
-                        StatusLibrary.Log($"[DEBUG] dinput8.dll is up to date (MD5: {md5.ToUpper()})");
-                    }
+                        btnPatch.Visibility = Visibility.Visible;
+                        btnPlay.Visibility = Visibility.Collapsed;
+                        btnPatch.IsEnabled = true;
+                    });
                 }
-            }
-
-            // Update integrity check timestamp and status
-            IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
-            IniLibrary.instance.QuickCheckStatus = allFilesIntact ? "success" : "failed";
-            await Task.Run(() => IniLibrary.Save());
-
-            // Hide progress bar after full check
-            Dispatcher.Invoke(() =>
-            {
-                txtProgress.Visibility = Visibility.Collapsed;
-                progressBar.Value = 0;
-            });
-
-            // Report results
-            if (missingOrModifiedFiles.Count == 0 && allFilesIntact)
-            {
-                StatusLibrary.Log("Scan complete - you can now play");
-
-                // If files are intact but versions differ, update the version
-                IniLibrary.instance.LastPatchedVersion = filelist.version;
-                await Task.Run(() => IniLibrary.Save());
-
-                // Make the play button visible
-                Dispatcher.Invoke(() =>
-                {
-                    btnPatch.Visibility = Visibility.Collapsed;
-                    btnPlay.Visibility = Visibility.Visible;
-                });
-            }
-            else
-            {
-                StatusLibrary.Log($"Scan complete - {missingOrModifiedFiles.Count} file(s) need updating");
-                Dispatcher.Invoke(() =>
-                {
-                    btnPatch.Visibility = Visibility.Visible;
-                    btnPlay.Visibility = Visibility.Collapsed;
-                });
             }
         }
 
