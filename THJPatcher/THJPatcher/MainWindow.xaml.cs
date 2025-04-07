@@ -3039,31 +3039,37 @@ namespace THJPatcher
 
             int totalFiles = filelist.downloads.Count;
             int checkedFiles = 0;
+            int loggedFileCount = 0;
+            const int maxLoggedFiles = 10; // Only log a limited number of missing files to avoid flooding
 
-            // Keep track of processed files for debugging
-            Dictionary<string, bool> processedFiles = new Dictionary<string, bool>();
-
-            foreach (var entry in filelist.downloads)
+            // Process files in batches to prevent UI freezing
+            for (int i = 0; i < filelist.downloads.Count; i++)
             {
+                var entry = filelist.downloads[i];
+                checkedFiles++;
+
+                // Update progress bar every 10 files or for the last file
+                if (checkedFiles % 10 == 0 || checkedFiles == totalFiles)
+                {
+                    int progress = (int)((double)checkedFiles / totalFiles * 100);
+                    Dispatcher.Invoke(() =>
+                    {
+                        progressBar.Value = progress;
+                        txtProgress.Text = $"Quick scan: {progress}%";
+                    });
+
+                    // Short delay every 100 files to keep UI responsive
+                    if (checkedFiles % 100 == 0)
+                    {
+                        await Task.Delay(1); // Minimal delay to allow UI thread to process
+                    }
+                }
+
                 // Skip heroesjourneyemu.exe as it's the patcher itself
                 if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
                 {
-                    checkedFiles++;
                     continue;
                 }
-
-                checkedFiles++;
-
-                // Update progress bar (0-100 range)
-                int progress = (int)((double)checkedFiles / totalFiles * 100);
-                Dispatcher.Invoke(() =>
-                {
-                    progressBar.Value = progress;
-                    txtProgress.Text = $"Quick scan: {progress}%";
-                });
-
-                // Mark this file as processed
-                processedFiles[entry.name] = true;
 
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
                 if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
@@ -3080,30 +3086,30 @@ namespace THJPatcher
                                  entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
                                  entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
 
-                if (isMapFile && isDebugMode)
-                {
-                    StatusLibrary.Log($"[DEBUG] Processing map file: {entry.name}");
-                }
-
                 bool needsDownload = false;
                 if (!await Task.Run(() => File.Exists(path)))
                 {
-                    if (isDebugMode)
+                    // Only log a limited number of missing files to prevent console flooding
+                    if (loggedFileCount < maxLoggedFiles)
                     {
-                        StatusLibrary.Log($"[DEBUG] Missing file detected: {entry.name}");
+                        if (isDinput8)
+                        {
+                            StatusLibrary.Log($"[Important] Missing dinput8.dll detected - will be downloaded");
+                        }
+                        else if (isMapFile)
+                        {
+                            StatusLibrary.Log($"Missing map file detected: {entry.name}");
+                        }
+                        else
+                        {
+                            StatusLibrary.Log($"Missing file detected: {entry.name}");
+                        }
+                        loggedFileCount++;
                     }
-
-                    if (isDinput8)
+                    else if (loggedFileCount == maxLoggedFiles)
                     {
-                        StatusLibrary.Log($"[Important] Missing dinput8.dll detected - will be downloaded");
-                    }
-                    else if (isMapFile)
-                    {
-                        StatusLibrary.Log($"Missing map file detected: {entry.name}");
-                    }
-                    else
-                    {
-                        StatusLibrary.Log($"Missing file detected: {entry.name}");
+                        StatusLibrary.Log($"... and more files need to be downloaded (limiting log output)");
+                        loggedFileCount++;
                     }
 
                     needsDownload = true;
@@ -3137,11 +3143,17 @@ namespace THJPatcher
                         var fileInfo = await Task.Run(() => new FileInfo(path));
                         if (fileInfo.Length != entry.size)
                         {
-                            if (isDebugMode)
+                            // Only log a limited number of size mismatches to prevent console flooding
+                            if (loggedFileCount < maxLoggedFiles)
                             {
-                                StatusLibrary.Log($"[DEBUG] File size mismatch detected: {entry.name}");
+                                StatusLibrary.Log($"Size mismatch detected: {entry.name}");
+                                loggedFileCount++;
                             }
-                            StatusLibrary.Log($"Size mismatch detected: {entry.name}");
+                            else if (loggedFileCount == maxLoggedFiles)
+                            {
+                                StatusLibrary.Log($"... and more files need to be downloaded (limiting log output)");
+                                loggedFileCount++;
+                            }
 
                             needsDownload = true;
                             quickCheckPassed = false;
@@ -3158,14 +3170,14 @@ namespace THJPatcher
                         missingOrModifiedFiles.Add(entry);
                     }
 
-                    // Add to download queue if not already there (always add UI files and map files)
-                    if ((isUiFile || isMapFile || isDinput8) && !filesToDownload.Any(f => f.name == entry.name))
+                    // Add to download queue if not already there
+                    if (!filesToDownload.Any(f => f.name == entry.name))
                     {
                         filesToDownload.Add(entry);
                         if (isDebugMode)
                         {
-                            string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : "UI");
-                            StatusLibrary.Log($"[DEBUG] Added {fileType} file to download queue: {entry.name}");
+                            string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : (isUiFile ? "UI" : "file"));
+                            StatusLibrary.Log($"[DEBUG] Added {fileType} to download queue: {entry.name}");
                         }
                     }
                 }
@@ -3189,7 +3201,7 @@ namespace THJPatcher
             // If there are any files to download, show the patch button and hide play button
             if (filesToDownload.Count > 0)
             {
-                StatusLibrary.Log($"Found {filesToDownload.Count} file(s) that need to be patched.");
+                StatusLibrary.Log($"Scan complete - found {filesToDownload.Count} file(s) that need to be patched.");
                 Dispatcher.Invoke(() =>
                 {
                     btnPatch.Visibility = Visibility.Visible;
@@ -3202,26 +3214,22 @@ namespace THJPatcher
                 IniLibrary.instance.QuickCheckStatus = "failed";
                 await Task.Run(() => IniLibrary.Save());
 
-                // Print out map files detected (for debugging)
+                // Print summary of detected types (for debugging)
                 if (isDebugMode)
                 {
                     var mapFiles = filesToDownload.Where(f =>
                         f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
                         f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
-                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).Count();
 
-                    if (mapFiles.Any())
-                    {
-                        StatusLibrary.Log($"[DEBUG] Found {mapFiles.Count} map files that need downloading:");
-                        foreach (var map in mapFiles.Take(10))
-                        {
-                            StatusLibrary.Log($"[DEBUG] Map: {map.name}");
-                        }
-                        if (mapFiles.Count > 10)
-                        {
-                            StatusLibrary.Log($"[DEBUG] And {mapFiles.Count - 10} more map files...");
-                        }
-                    }
+                    var uiFiles = filesToDownload.Where(f =>
+                        f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase)).Count();
+
+                    var dllFiles = filesToDownload.Where(f =>
+                        f.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).Count();
+
+                    StatusLibrary.Log($"[DEBUG] File types to download: {mapFiles} map files, {uiFiles} UI files, {dllFiles} DLL files");
                 }
 
                 // Immediately start the patch process if auto-patch is enabled
@@ -3268,6 +3276,7 @@ namespace THJPatcher
 
                 bool allFilesIntact = true;
                 checkedFiles = 0;
+                loggedFileCount = 0;
 
                 foreach (var entry in filelist.downloads)
                 {
@@ -3279,12 +3288,23 @@ namespace THJPatcher
                     }
 
                     checkedFiles++;
-                    int progress = (int)((double)checkedFiles / totalFiles * 100);
-                    Dispatcher.Invoke(() =>
+
+                    // Update progress bar every 10 files or for the last file
+                    if (checkedFiles % 10 == 0 || checkedFiles == totalFiles)
                     {
-                        progressBar.Value = progress;
-                        txtProgress.Text = $"Full scan: {progress}%";
-                    });
+                        int progress = (int)((double)checkedFiles / totalFiles * 100);
+                        Dispatcher.Invoke(() =>
+                        {
+                            progressBar.Value = progress;
+                            txtProgress.Text = $"Full scan: {progress}%";
+                        });
+
+                        // Short delay every 100 files to keep UI responsive
+                        if (checkedFiles % 100 == 0)
+                        {
+                            await Task.Delay(1); // Minimal delay to allow UI thread to process
+                        }
+                    }
 
                     var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
                     if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
@@ -3301,13 +3321,19 @@ namespace THJPatcher
                     bool needsDownload = false;
                     if (!await Task.Run(() => File.Exists(path)))
                     {
-                        if (isDebugMode)
+                        // Limit logging to prevent console flooding
+                        if (loggedFileCount < maxLoggedFiles)
                         {
                             string fileType = isDinput8 ? "dinput8.dll" : (isMapFile ? "map file" : "file");
-                            StatusLibrary.Log($"[DEBUG] Missing {fileType} detected: {entry.name}");
+                            StatusLibrary.Log($"Missing {fileType} detected: {entry.name}");
+                            loggedFileCount++;
+                        }
+                        else if (loggedFileCount == maxLoggedFiles)
+                        {
+                            StatusLibrary.Log($"... and more files need to be downloaded (limiting log output)");
+                            loggedFileCount++;
                         }
 
-                        StatusLibrary.Log($"Missing file detected: {entry.name}");
                         needsDownload = true;
                         allFilesIntact = false;
                     }
@@ -3323,7 +3349,18 @@ namespace THJPatcher
                                 StatusLibrary.Log($"[DEBUG] Got: {md5.ToUpper()}");
                             }
 
-                            StatusLibrary.Log($"Content mismatch detected: {entry.name}");
+                            // Limit logging to prevent console flooding
+                            if (loggedFileCount < maxLoggedFiles)
+                            {
+                                StatusLibrary.Log($"Content mismatch detected: {entry.name}");
+                                loggedFileCount++;
+                            }
+                            else if (loggedFileCount == maxLoggedFiles)
+                            {
+                                StatusLibrary.Log($"... and more files need to be downloaded (limiting log output)");
+                                loggedFileCount++;
+                            }
+
                             needsDownload = true;
                             allFilesIntact = false;
                         }
