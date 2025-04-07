@@ -1491,14 +1491,14 @@ namespace THJPatcher
                 progressBar.Value = 0;
                 bool quickCheckPassed = true;
 
-                int totalFiles = filelist.downloads.Count;
+                int totalFilesCount = filelist.downloads.Count;
                 int checkedFiles = 0;
 
                 foreach (var entry in filelist.downloads)
                 {
                     checkedFiles++;
                     // Update progress bar (0-100 range)
-                    int progress = (int)((double)checkedFiles / totalFiles * 100);
+                    int progress = (int)((double)checkedFiles / totalFilesCount * 100);
                     Dispatcher.Invoke(() =>
                     {
                         progressBar.Value = progress;
@@ -1828,7 +1828,7 @@ namespace THJPatcher
             if (filesToDownload.Count == 0)
             {
                 // Calculate total files to check
-                int totalFiles = filelist.downloads.Count;
+                int totalFilesCount = filelist.downloads.Count;
                 int checkedFiles = 0;
 
                 // First scan - check all files
@@ -1841,7 +1841,7 @@ namespace THJPatcher
                         return;
                     }
 
-                    StatusLibrary.SetProgress((int)((double)checkedFiles / totalFiles * 10000));
+                    StatusLibrary.SetProgress((int)((double)checkedFiles / totalFilesCount * 10000));
                     checkedFiles++;
 
                     // Skip heroesjourneyemu.exe as it's the patcher itself
@@ -3187,7 +3187,7 @@ namespace THJPatcher
             bool quickCheckPassed = true;
             List<FileEntry> missingOrModifiedFiles = new List<FileEntry>();
 
-            int totalFiles = filelist.downloads.Count;
+            int totalFilesCount = filelist.downloads.Count;
             int checkedFiles = 0;
             int loggedFileCount = 0;
             const int maxLoggedFiles = 10; // Only log a limited number of missing files to avoid flooding
@@ -3199,9 +3199,9 @@ namespace THJPatcher
                 checkedFiles++;
 
                 // Update progress bar every 10 files or for the last file
-                if (checkedFiles % 10 == 0 || checkedFiles == totalFiles)
+                if (checkedFiles % 10 == 0 || checkedFiles == totalFilesCount)
                 {
-                    int progress = (int)((double)checkedFiles / totalFiles * 100);
+                    int progress = (int)((double)checkedFiles / totalFilesCount * 100);
                     Dispatcher.Invoke(() =>
                     {
                         progressBar.Value = progress;
@@ -3440,9 +3440,9 @@ namespace THJPatcher
                     checkedFiles++;
 
                     // Update progress bar every 10 files or for the last file
-                    if (checkedFiles % 10 == 0 || checkedFiles == totalFiles)
+                    if (checkedFiles % 10 == 0 || checkedFiles == totalFilesCount)
                     {
-                        int progress = (int)((double)checkedFiles / totalFiles * 100);
+                        int progress = (int)((double)checkedFiles / totalFilesCount * 100);
                         Dispatcher.Invoke(() =>
                         {
                             progressBar.Value = progress;
