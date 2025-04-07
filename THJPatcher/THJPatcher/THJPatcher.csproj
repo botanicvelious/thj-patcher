@@ -23,7 +23,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
-    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <NoWarn>$(NoWarn);CA1416;CS1998;CS8600;CS8602;CS8604</NoWarn>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <EnableLegacyRIDs>true</EnableLegacyRIDs>
     <PublishSingleFile>true</PublishSingleFile>
@@ -75,7 +75,7 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Costura.Fody" />
+    <PackageReference Include="Costura.Fody" PrivateAssets="All" />
     <PackageReference Include="Fody" />
     <PackageReference Include="LibGit2Sharp" />
     <PackageReference Include="LibGit2Sharp.NativeBinaries" />

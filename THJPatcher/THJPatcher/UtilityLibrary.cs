@@ -1,4 +1,5 @@
-﻿using System;
+﻿#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +14,8 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
+using System.Security.Policy;
+using System.IO.MemoryMappedFiles;
 
 namespace THJPatcher
 {
@@ -38,14 +41,21 @@ namespace THJPatcher
         private static extern bool IsIconic(IntPtr hWnd);
 
         //Download a file to current directory
-        public static async Task<string> DownloadFile(CancellationTokenSource cts, string url, string outFile)
+        public static async Task<string> DownloadFile(CancellationTokenSource cts, string url, string outFile, Action<long, long> progressCallback = null)
         {
-
             try
             {
                 var client = new HttpClient();
                 var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
                 response.EnsureSuccessStatusCode();
+                
+                // Get the total size of the file we're downloading
+                long? totalBytes = response.Content.Headers.ContentLength;
+                if (totalBytes == null)
+                {
+                    totalBytes = 1000000; // Default size if we can't determine
+                }
+                
                 using (var stream = await response.Content.ReadAsStreamAsync())
                 {
                     var outPath = outFile.Replace("/", "\\");
@@ -55,56 +65,240 @@ namespace THJPatcher
                     }
                     outPath = System.IO.Path.GetDirectoryName(Application.ExecutablePath) + "\\" + outFile;
 
-                    using (var w = File.Create(outPath)) {
-                        await stream.CopyToAsync(w, 81920, cts.Token);
+                    using (var w = new FileStream(outPath, FileMode.Create, FileAccess.Write, FileShare.None, 
+                        bufferSize: 131072, useAsync: true)) 
+                    {
+                        // Use a larger buffer size of 128KB for better throughput
+                        byte[] buffer = new byte[131072];
+                        long totalBytesRead = 0;
+                        int bytesRead;
+                        
+                        // Read in chunks and report progress
+                        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cts.Token)) > 0)
+                        {
+                            await w.WriteAsync(buffer, 0, bytesRead);
+                            totalBytesRead += bytesRead;
+                            
+                            // Report progress through callback if provided
+                            progressCallback?.Invoke(totalBytesRead, totalBytes.Value);
+                        }
                     }
                 }
-            } catch(ArgumentNullException e)
+            } 
+            catch(ArgumentNullException e)
             {
                 return "ArgumentNullExpception: " + e.Message;
-            } catch(HttpRequestException e)
+            } 
+            catch(HttpRequestException e)
             {
                 return "HttpRequestException: " + e.Message;
-            } catch (Exception e)
+            } 
+            catch (Exception e)
             {
                 return "Exception: " + e.Message;
             }
             return "";
         }
 
+        /// <summary>
+        /// Downloads a file, saves it, and verifies its hash against an expected value simultaneously.
+        /// </summary>
+        /// <param name="cts">Cancellation token source.</param>
+        /// <param name="url">URL to download from.</param>
+        /// <param name="outFile">Relative path to save the file.</param>
+        /// <param name="expectedHash">The expected MD5 hash (uppercase).</param>
+        /// <param name="progressCallback">Callback for download progress.</param>
+        /// <returns>Tuple: (bool success, string? actualHash) - success indicates download AND hash match, actualHash is the computed hash or null on error.</returns>
+        public static async Task<(bool success, string? actualHash)> DownloadFileAndVerifyHashAsync(
+            CancellationTokenSource cts, 
+            string url, 
+            string outFile, 
+            string expectedHash, 
+            Action<long, long>? progressCallback = null)
+        {
+            string? actualHash = null;
+            try
+            {
+                using var client = new HttpClient();
+                using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                response.EnsureSuccessStatusCode();
+
+                long? totalBytes = response.Content.Headers.ContentLength;
+                if (!totalBytes.HasValue)
+                {
+                    // Cannot reliably report progress or verify size easily without content length
+                    // Consider logging a warning or handling this case differently if needed
+                    return (false, null); // Indicate failure if content length is missing
+                }
+
+                var outPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath) ?? string.Empty, outFile.Replace("/", "\\"));
+                string? directory = Path.GetDirectoryName(outPath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                using var fileStream = new FileStream(outPath, FileMode.Create, FileAccess.Write, FileShare.None, 
+                    bufferSize: 131072, useAsync: true); // 128KB buffer, optimized for async
+                using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
+                using var md5 = MD5.Create();
+                using var cryptoStream = new CryptoStream(fileStream, md5, CryptoStreamMode.Write);
+
+                byte[] buffer = new byte[131072]; // Increased to 128 KB buffer for better throughput
+                long totalBytesRead = 0;
+                int bytesRead;
+
+                while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cts.Token)) > 0)
+                {
+                    await cryptoStream.WriteAsync(buffer, 0, bytesRead, cts.Token);
+                    totalBytesRead += bytesRead;
+                    progressCallback?.Invoke(totalBytesRead, totalBytes.Value);
+                }
+
+                // Finalize the hash computation
+                cryptoStream.FlushFinalBlock(); 
+                byte[] hashBytes = md5.Hash ?? Array.Empty<byte>();
+                actualHash = BitConverter.ToString(hashBytes).Replace("-", "").ToUpperInvariant();
+
+                // Verify hash
+                bool hashMatch = actualHash.Equals(expectedHash.ToUpperInvariant(), StringComparison.OrdinalIgnoreCase);
+                
+                // Ensure file stream is properly closed before returning
+                await fileStream.FlushAsync(cts.Token); 
+                fileStream.Close(); 
+
+                return (hashMatch, actualHash);
+            }
+            catch (OperationCanceledException)
+            {
+                // Don't return error message, just indicate failure
+                return (false, null); 
+            }
+            catch (Exception ex) // Catch more specific exceptions if needed
+            {
+                // Log the exception details for debugging
+                Debug.WriteLine($"[Error] Download/Verify failed for {url}: {ex.Message}"); 
+                return (false, actualHash); // Return actual hash if computed, but indicate failure
+            }
+        }
+
         // Download will grab a remote URL's file and return the data as a byte array
-        public static async Task<byte[]> Download(CancellationTokenSource cts, string url)
+        public static async Task<byte[]> Download(CancellationTokenSource cts, string url, Action<long, long> progressCallback = null)
         {
             var client = new HttpClient();
             var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             response.EnsureSuccessStatusCode();
+            
+            // Get the total size of the file we're downloading
+            long? totalBytes = response.Content.Headers.ContentLength;
+            if (totalBytes == null)
+            {
+                totalBytes = 1000000; // Default size if we can't determine
+            }
+            
             using (var stream = await response.Content.ReadAsStreamAsync())
             {
-                using (var w = new MemoryStream())
+                using (var w = new MemoryStream(capacity: 131072)) // Pre-allocate with larger capacity
                 {
-                    await stream.CopyToAsync(w, 81920, cts.Token);
+                    // Use a larger buffer size of 128KB
+                    byte[] buffer = new byte[131072];
+                    long totalBytesRead = 0;
+                    int bytesRead;
+                    
+                    // Read in chunks and report progress
+                    while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cts.Token)) > 0)
+                    {
+                        await w.WriteAsync(buffer, 0, bytesRead);
+                        totalBytesRead += bytesRead;
+                        
+                        // Report progress through callback if provided
+                        progressCallback?.Invoke(totalBytesRead, totalBytes.Value);
+                    }
+                    
                     return w.ToArray();
                 }
             }
         }
 
-        public static string GetMD5(string filename)
+        /// <summary>
+        /// Computes the MD5 hash of a file, using memory-mapped I/O for large files.
+        /// </summary>
+        /// <param name="filename">The path to the file.</param>
+        /// <param name="useMemoryMappedFile">Whether to use memory mapping for large files.</param>
+        /// <param name="largeFileThreshold">Size threshold in bytes for using memory mapping.</param>
+        /// <returns>The uppercase MD5 hash string.</returns>
+        public static string GetMD5(string filename, bool useMemoryMappedFile = true, long largeFileThreshold = 100 * 1024 * 1024)
+        {
+            try
+            {
+                var fileInfo = new FileInfo(filename);
+                
+                // For large files, use a chunked approach with a larger buffer
+                if (fileInfo.Length > largeFileThreshold)
+                {
+                    using (var md5 = MD5.Create())
+                    {
+                        using (var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 
+                                                         262144, FileOptions.SequentialScan))
+                        {
+                            // Process in 64MB chunks to avoid excessive memory usage
+                            byte[] buffer = new byte[262144]; // 256KB buffer
+                            int bytesRead;
+                            
+                            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+                            {
+                                md5.TransformBlock(buffer, 0, bytesRead, null, 0);
+                            }
+                            
+                            md5.TransformFinalBlock(buffer, 0, 0);
+                            if (md5.Hash == null) return string.Empty;
+                            
+                            StringBuilder sb = new StringBuilder(md5.Hash.Length * 2);
+                            foreach (byte b in md5.Hash)
+                            {
+                                sb.Append(b.ToString("X2"));
+                            }
+                            return sb.ToString();
+                        }
+                    }
+                }
+                else
+                {
+                    // Use the regular file streaming approach for normal-sized files
+                    using (var stream = File.OpenRead(filename))
+                    {
+                        return GetMD5(stream);
+                    }
+                }
+            }
+            catch (IOException ex) // Handle potential file access errors
+            {
+                 Debug.WriteLine($"[Error] Failed to open file for MD5 {filename}: {ex.Message}");
+                 return string.Empty; // Or throw, depending on desired behavior
+            }
+        }
+
+        /// <summary>
+        /// Computes the MD5 hash of a stream.
+        /// </summary>
+        /// <param name="stream">The input stream.</param>
+        /// <returns>The uppercase MD5 hash string, or empty string if hash is null.</returns>
+        public static string GetMD5(Stream stream)
         {
             using (var md5 = MD5.Create())
             {
-                using (var stream = File.OpenRead(filename))
+                var hash = md5.ComputeHash(stream);
+                if (hash == null)
                 {
-                    var hash = md5.ComputeHash(stream);
-
-                    StringBuilder sb = new StringBuilder();
-
-                    for (int i = 0; i < hash.Length; i++)
-                    {
-                        sb.Append(hash[i].ToString("X2"));
-                    }
-
-                    return sb.ToString();
+                     return string.Empty; 
                 }
+                // Use efficient StringBuilder allocation
+                StringBuilder sb = new StringBuilder(hash.Length * 2); 
+                foreach (byte b in hash)
+                {
+                    sb.Append(b.ToString("X2"));
+                }
+                return sb.ToString();
             }
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,82 +10,79 @@ namespace THJPatcher
 {
     internal class StatusLibrary
     {
-        readonly static Mutex mux = new Mutex();
+        private static readonly object _lock = new object(); 
         
         public delegate void ProgressHandler(int value);
         static event ProgressHandler progressChange;
         static int progressValue;
 
-        public delegate void LogAddHandler(string message);
-        static event LogAddHandler logAddChange;
+        private static ConcurrentQueue<string> logQueue = new ConcurrentQueue<string>();
+        public delegate void LogUpdateHandler();
+        static event LogUpdateHandler logUpdateAvailable;
 
         public delegate void PatchStateHandler(bool isPatching);
         static event PatchStateHandler patchStateChange;
 
+        public static List<string> DequeueLogMessages()
+        {
+            List<string> messages = new List<string>();
+            while (logQueue.TryDequeue(out string message))
+            {
+                messages.Add(message);
+            }
+            return messages;
+        }
+
         public static int Progress()
         {
-            mux.WaitOne();
-            int value = progressValue;
-            mux.ReleaseMutex();
-            return value;
+            lock (_lock)
+            {
+                 return progressValue;
+            }
         }
 
         public static void SetProgress(int value)
         {
-            mux.WaitOne();
-            progressValue = value;
-            var handler = progressChange;
-            mux.ReleaseMutex();
-
-            if (handler != null)
+            ProgressHandler handler = null;
+            lock (_lock)
             {
-                Task.Run(() => handler.Invoke(value));
+                progressValue = value;
+                handler = progressChange; 
             }
+            handler?.Invoke(value); 
         }
 
         public static void SubscribeProgress(ProgressHandler f)
         {
-            mux.WaitOne();
-            progressChange += f;
-            mux.ReleaseMutex();
+            lock (_lock) { progressChange += f; }
         }
 
         public static void Log(string message)
         {
-            mux.WaitOne();
-            var handler = logAddChange;
-            mux.ReleaseMutex();
+            logQueue.Enqueue(message);
 
-            if (handler != null)
-            {
-                Task.Run(() => handler.Invoke(message));
-            }
+            LogUpdateHandler handler = logUpdateAvailable;
+            handler?.Invoke();
         }
 
-        public static void SubscribeLogAdd(LogAddHandler f)
+        public static void SubscribeLogUpdateAvailable(LogUpdateHandler f)
         {
-            mux.WaitOne();
-            logAddChange += f;
-            mux.ReleaseMutex();
+            lock (_lock) { logUpdateAvailable += f; }
         }
 
         public static void SetPatchState(bool isPatching)
         {
-            mux.WaitOne();
-            var handler = patchStateChange;
-            mux.ReleaseMutex();
-
-            if (handler != null)
-            {
-                Task.Run(() => handler.Invoke(isPatching));
-            }
+            PatchStateHandler handler = null;
+             lock(_lock)
+             {
+                handler = patchStateChange;
+             }
+            handler?.Invoke(isPatching);
         }
 
         public static void SubscribePatchState(PatchStateHandler f)
         {
-            mux.WaitOne();
-            patchStateChange += f;
-            mux.ReleaseMutex();
+            lock (_lock) { patchStateChange += f; }
         }
     }
 }
