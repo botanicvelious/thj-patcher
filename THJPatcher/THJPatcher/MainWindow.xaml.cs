@@ -202,6 +202,9 @@ namespace THJPatcher
 
         private LatestChangelogWindow _latestChangelogWindow;
 
+        // Add a field to track initialization state
+        private bool hasInitialized = false;
+
         private string FormatAuthorName(string author)
         {
             if (string.IsNullOrEmpty(author)) return "System";
@@ -635,6 +638,10 @@ namespace THJPatcher
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // Prevent duplicate initialization
+            if (hasInitialized) return;
+            hasInitialized = true;
+
             isLoading = true;
             cts = new CancellationTokenSource();
 
