@@ -43,6 +43,7 @@ namespace THJPatcher
         private bool isDebugMode = false;
         private bool isSilentMode = false;
         private bool isAutoConfirm = false;
+        private bool isCheckingForUpdates = false; // New flag to prevent duplicate checks
         private CancellationTokenSource cts;
         private string myHash = "";
         private string patcherUrl;
@@ -621,12 +622,26 @@ namespace THJPatcher
 
         private async void BtnPatch_Click(object sender, RoutedEventArgs e)
         {
+            // Use atomic check and set to prevent duplicate update checks
             if (isLoading && !isPendingPatch)
             {
-                isPendingPatch = true;
+                // Only proceed if we're not already checking for updates
+                lock(logBufferLock) // Reuse existing lock object for thread safety
+                {
+                    if (isCheckingForUpdates)
+                        return;
+                    
+                    isCheckingForUpdates = true;
+                    isPendingPatch = true;
+                }
+                
                 StatusLibrary.Log("Checking for updates...");
                 btnPatch.Content = "PATCHING...";
                 btnPatch.Tag = true; // Show spinner and disabled appearance
+                
+                // Reset the flag after a delay to ensure it doesn't get stuck
+                await Task.Delay(500);
+                isCheckingForUpdates = false;
                 return;
             }
 
@@ -669,8 +684,10 @@ namespace THJPatcher
         {
             if (e.Key == System.Windows.Input.Key.Enter)
             {
-                // Check if Patch button is visible and enabled
-                if (btnPatch.Visibility == Visibility.Visible && btnPatch.IsEnabled)
+                e.Handled = true; // Mark as handled to prevent further processing
+                
+                // Check if Patch button is visible and enabled, and we're not already checking
+                if (btnPatch.Visibility == Visibility.Visible && btnPatch.IsEnabled && !isCheckingForUpdates && !isPendingPatch)
                 {
                     BtnPatch_Click(null, null);
                 }

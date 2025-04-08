@@ -22,6 +22,15 @@ namespace THJPatcher
 
         public delegate void PatchStateHandler(bool isPatching);
         static event PatchStateHandler patchStateChange;
+        
+        // Dictionary to track recently logged messages with timestamps
+        private static ConcurrentDictionary<string, DateTime> _recentLogMessages = new ConcurrentDictionary<string, DateTime>();
+        
+        // Time window for deduplication (2 seconds)
+        private static readonly TimeSpan _logDeduplicationWindow = TimeSpan.FromSeconds(2);
+        
+        // Maximum entries to keep in the recent messages cache to prevent memory leaks
+        private static readonly int _maxRecentMessages = 100;
 
         public static List<string> DequeueLogMessages()
         {
@@ -59,10 +68,45 @@ namespace THJPatcher
 
         public static void Log(string message)
         {
-            logQueue.Enqueue(message);
-
-            LogUpdateHandler handler = logUpdateAvailable;
-            handler?.Invoke();
+            // Check if this exact message was logged recently
+            DateTime now = DateTime.Now;
+            bool shouldLog = true;
+            
+            if (_recentLogMessages.TryGetValue(message, out DateTime lastTime))
+            {
+                if (now - lastTime < _logDeduplicationWindow)
+                {
+                    // Skip logging duplicate message within time window
+                    shouldLog = false;
+                }
+            }
+            
+            if (shouldLog)
+            {
+                // Update last time this message was seen
+                _recentLogMessages[message] = now;
+                
+                // Clean up old entries occasionally to prevent memory leaks
+                if (_recentLogMessages.Count > _maxRecentMessages)
+                {
+                    // Remove entries older than the deduplication window
+                    foreach (var key in _recentLogMessages.Keys.ToList())
+                    {
+                        if (_recentLogMessages.TryGetValue(key, out DateTime timestamp) &&
+                            now - timestamp > _logDeduplicationWindow)
+                        {
+                            _recentLogMessages.TryRemove(key, out _);
+                        }
+                    }
+                }
+                
+                // Add message to queue
+                logQueue.Enqueue(message);
+                
+                // Notify handlers
+                LogUpdateHandler handler = logUpdateAvailable;
+                handler?.Invoke();
+            }
         }
 
         public static void SubscribeLogUpdateAvailable(LogUpdateHandler f)
