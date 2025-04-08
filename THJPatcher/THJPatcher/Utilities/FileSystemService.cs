@@ -32,6 +32,9 @@ namespace THJPatcher.Utilities
         // File size threshold for optimization strategies
         private const long LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100MB
         
+        // Log output limiting to prevent flooding
+        private const int MAX_LOGGED_FILES = 10;
+        
         // Cache for file hashes to avoid recomputing when unchanged
         private readonly ConcurrentDictionary<string, (string Hash, DateTime LastModified)> _fileHashCache = 
             new ConcurrentDictionary<string, (string Hash, DateTime LastModified)>();
@@ -214,6 +217,7 @@ namespace THJPatcher.Utilities
             // Thread-safe collections for tracking results
             var missingOrModifiedFiles = new ConcurrentBag<FileEntry>();
             int checkedFiles = 0;
+            int loggedFileCount = 0; // Track how many files we've logged to limit output
             
             // First do a quick check in parallel (file existence and size only)
             _logAction("Starting Quick File Scan...");
@@ -300,12 +304,24 @@ namespace THJPatcher.Utilities
                         // Check if file exists
                         if (!File.Exists(path))
                         {
-                            if (_isDebugMode)
+                            // Limit logging to prevent flooding
+                            bool shouldLog = Interlocked.Increment(ref loggedFileCount) <= MAX_LOGGED_FILES;
+                            
+                            if (shouldLog)
                             {
-                                _logAction($"[DEBUG] Missing map file detected: {entry.name}");
+                                if (_isDebugMode)
+                                {
+                                    _logAction($"[DEBUG] Missing map file detected: {entry.name}");
+                                }
+                                
+                                _logAction($"Missing map file detected: {entry.name}");
+                            }
+                            else if (loggedFileCount == MAX_LOGGED_FILES + 1)
+                            {
+                                // Log message indicating we're limiting output
+                                _logAction($"... and more files need to be downloaded (limiting log output)");
                             }
                             
-                            _logAction($"Missing map file detected: {entry.name}");
                             missingOrModifiedFiles.Add(entry);
                             
                             // Add to download queue for map files
@@ -314,7 +330,7 @@ namespace THJPatcher.Utilities
                                 if (!_filesToDownload.Any(f => f.name == entry.name))
                                 {
                                     _filesToDownload.Add(entry);
-                                    if (_isDebugMode)
+                                    if (_isDebugMode && shouldLog)
                                     {
                                         _logAction($"[DEBUG] Added missing map file to download queue: {entry.name}");
                                     }
@@ -329,12 +345,24 @@ namespace THJPatcher.Utilities
                             var fileInfo = new FileInfo(path);
                             if (fileInfo.Length != entry.size)
                             {
-                                if (_isDebugMode)
+                                // Limit logging to prevent flooding
+                                bool shouldLog = Interlocked.Increment(ref loggedFileCount) <= MAX_LOGGED_FILES;
+                                
+                                if (shouldLog)
                                 {
-                                    _logAction($"[DEBUG] Map file size mismatch detected: {entry.name}");
+                                    if (_isDebugMode)
+                                    {
+                                        _logAction($"[DEBUG] Map file size mismatch detected: {entry.name}");
+                                    }
+                                    
+                                    _logAction($"Size mismatch detected: {entry.name}");
+                                }
+                                else if (loggedFileCount == MAX_LOGGED_FILES + 1)
+                                {
+                                    // Log message indicating we're limiting output
+                                    _logAction($"... and more files need to be downloaded (limiting log output)");
                                 }
                                 
-                                _logAction($"Size mismatch detected: {entry.name}");
                                 missingOrModifiedFiles.Add(entry);
                                 
                                 // Add map files with mismatched size to download queue
@@ -343,7 +371,7 @@ namespace THJPatcher.Utilities
                                     if (!_filesToDownload.Any(f => f.name == entry.name))
                                     {
                                         _filesToDownload.Add(entry);
-                                        if (_isDebugMode)
+                                        if (_isDebugMode && shouldLog)
                                         {
                                             _logAction($"[DEBUG] Added mismatched map file to download queue: {entry.name}");
                                         }
@@ -492,28 +520,24 @@ namespace THJPatcher.Utilities
             // If we've already found UI files that need updating, we can proceed to patching
             if (_filesToDownload.Count > 0)
             {
-                _logAction($"Found {_filesToDownload.Count} UI file(s) that need to be patched.");
+                _logAction($"Scan complete - found {_filesToDownload.Count} file(s) that need to be patched.");
                 
-                // Print out map files detected (for debugging)
+                // Print out file type summary (for debugging)
                 if (_isDebugMode)
                 {
-                    var mapFilesToDownload = _filesToDownload.Where(f =>
+                    var mapFilesCount = _filesToDownload.Where(f =>
                         f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
                         f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
-                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).Count();
 
-                    if (mapFilesToDownload.Any())
-                    {
-                        _logAction($"[DEBUG] Found {mapFilesToDownload.Count} map files that need downloading:");
-                        foreach (var map in mapFilesToDownload.Take(10))
-                        {
-                            _logAction($"[DEBUG] Map: {map.name}");
-                        }
-                        if (mapFilesToDownload.Count > 10)
-                        {
-                            _logAction($"[DEBUG] And {mapFilesToDownload.Count - 10} more map files...");
-                        }
-                    }
+                    var uiFilesCount = _filesToDownload.Where(f =>
+                        f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase)).Count();
+                        
+                    var dllFilesCount = _filesToDownload.Where(f =>
+                        f.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).Count();
+
+                    _logAction($"[DEBUG] File types to download: {mapFilesCount} map files, {uiFilesCount} UI files, {dllFilesCount} DLL files");
                 }
                 
                 // Update integrity check status
@@ -533,6 +557,8 @@ namespace THJPatcher.Utilities
                 {
                     using (partition)
                     {
+                        int localChecked = 0; // Local counter for batch progress updates
+                        
                         while (partition.MoveNext())
                         {
                             var entry = partition.Current;
@@ -564,13 +590,23 @@ namespace THJPatcher.Utilities
                                 // Check if file exists
                                 if (!File.Exists(path))
                                 {
-                                    if (_isDebugMode)
+                                    // Limit logging to prevent flooding
+                                    bool shouldLog = Interlocked.Increment(ref loggedFileCount) <= MAX_LOGGED_FILES;
+                                    
+                                    if (shouldLog)
                                     {
-                                        _logAction($"[DEBUG] Missing file detected: {entry.name}");
+                                        if (_isDebugMode)
+                                        {
+                                            _logAction($"[DEBUG] Missing file detected: {entry.name}");
+                                        }
+                                        else
+                                        {
+                                            _logAction($"Missing file detected: {entry.name}");
+                                        }
                                     }
-                                    else
+                                    else if (loggedFileCount == MAX_LOGGED_FILES + 1)
                                     {
-                                        _logAction($"Missing file detected: {entry.name}");
+                                        _logAction($"... and more files need to be downloaded (limiting log output)");
                                     }
                                     
                                     missingOrModifiedFiles.Add(entry);
@@ -581,7 +617,7 @@ namespace THJPatcher.Utilities
                                         if (!_filesToDownload.Any(f => f.name == entry.name))
                                         {
                                             _filesToDownload.Add(entry);
-                                            if (_isDebugMode)
+                                            if (_isDebugMode && shouldLog)
                                             {
                                                 _logAction($"[DEBUG] Added missing file to download queue: {entry.name}");
                                             }
@@ -596,12 +632,23 @@ namespace THJPatcher.Utilities
                                     var fileInfo = new FileInfo(path);
                                     if (fileInfo.Length != entry.size)
                                     {
-                                        if (_isDebugMode)
+                                        // Limit logging to prevent flooding
+                                        bool shouldLog = Interlocked.Increment(ref loggedFileCount) <= MAX_LOGGED_FILES;
+                                        
+                                        if (shouldLog)
                                         {
-                                            _logAction($"[DEBUG] File size mismatch detected: {entry.name}");
+                                            if (_isDebugMode)
+                                            {
+                                                _logAction($"[DEBUG] File size mismatch detected: {entry.name}");
+                                            }
+                                            
+                                            _logAction($"Size mismatch detected: {entry.name}");
+                                        }
+                                        else if (loggedFileCount == MAX_LOGGED_FILES + 1)
+                                        {
+                                            _logAction($"... and more files need to be downloaded (limiting log output)");
                                         }
                                         
-                                        _logAction($"Size mismatch detected: {entry.name}");
                                         missingOrModifiedFiles.Add(entry);
                                         
                                         // Add to download queue
@@ -610,7 +657,7 @@ namespace THJPatcher.Utilities
                                             if (!_filesToDownload.Any(f => f.name == entry.name))
                                             {
                                                 _filesToDownload.Add(entry);
-                                                if (_isDebugMode)
+                                                if (_isDebugMode && shouldLog)
                                                 {
                                                     _logAction($"[DEBUG] Added mismatched file to download queue: {entry.name}");
                                                 }
@@ -626,10 +673,22 @@ namespace THJPatcher.Utilities
                                     Interlocked.Exchange(ref quickCheckPassedInt, 0); // Thread-safe set to false
                                 }
                                 
-                                // Update progress after each file
+                                // Update progress in batches for better performance
+                                localChecked++;
                                 int filesDone = Interlocked.Increment(ref checkedFiles);
-                                int progress = 200 + (int)((double)filesDone / totalFiles * 4800);
-                                _progressAction(progress);
+                                
+                                // Only update progress every 10 files or at the end
+                                if (localChecked % 10 == 0 || partition.Current.Equals(otherFiles.Last()))
+                                {
+                                    int progress = 200 + (int)((double)filesDone / totalFiles * 4800);
+                                    _progressAction(progress);
+                                    
+                                    // Small delay every 100 files to keep UI responsive
+                                    if (localChecked % 100 == 0)
+                                    {
+                                        await Task.Delay(1);
+                                    }
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -653,28 +712,24 @@ namespace THJPatcher.Utilities
             // If there are any files to download, we're done with the quick check
             if (_filesToDownload.Count > 0)
             {
-                _logAction($"Found {_filesToDownload.Count} file(s) that need to be patched.");
+                _logAction($"Scan complete - found {_filesToDownload.Count} file(s) that need to be patched.");
                 
-                // Print out map files detected (for debugging)
+                // Print out file type summary (for debugging)
                 if (_isDebugMode)
                 {
-                    var mapFilesToDownload = _filesToDownload.Where(f =>
+                    var mapFilesCount = _filesToDownload.Where(f =>
                         f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
                         f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
-                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).Count();
 
-                    if (mapFilesToDownload.Any())
-                    {
-                        _logAction($"[DEBUG] Found {mapFilesToDownload.Count} map files that need downloading:");
-                        foreach (var map in mapFilesToDownload.Take(10))
-                        {
-                            _logAction($"[DEBUG] Map: {map.name}");
-                        }
-                        if (mapFilesToDownload.Count > 10)
-                        {
-                            _logAction($"[DEBUG] And {mapFilesToDownload.Count - 10} more map files...");
-                        }
-                    }
+                    var uiFilesCount = _filesToDownload.Where(f =>
+                        f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase)).Count();
+                        
+                    var dllFilesCount = _filesToDownload.Where(f =>
+                        f.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).Count();
+
+                    _logAction($"[DEBUG] File types to download: {mapFilesCount} map files, {uiFilesCount} UI files, {dllFilesCount} DLL files");
                 }
                 
                 // Update integrity check status
@@ -732,6 +787,7 @@ namespace THJPatcher.Utilities
             bool allFilesIntact = true;
             int allFilesIntactInt = 1; // 1 = intact, 0 = modified
             checkedFiles = 0;
+            loggedFileCount = 0; // Reset log counter for full scan
             
             // Reset lists for full scan
             var fullScanTasks = new List<Task>();
@@ -745,6 +801,8 @@ namespace THJPatcher.Utilities
                 {
                     using (partition)
                     {
+                        int localChecked = 0; // Local counter for batch progress updates
+                        
                         while (partition.MoveNext())
                         {
                             var entry = partition.Current;
@@ -759,8 +817,20 @@ namespace THJPatcher.Utilities
                             if (missingOrModifiedFiles.Any(f => f.name == entry.name))
                             {
                                 int filesDone = Interlocked.Increment(ref checkedFiles);
-                                int progress = 5000 + (int)((double)filesDone / totalFiles * 5000);
-                                _progressAction(progress);
+                                
+                                // Only update progress periodically
+                                localChecked++;
+                                if (localChecked % 10 == 0)
+                                {
+                                    int progress = 5000 + (int)((double)filesDone / totalFiles * 5000);
+                                    _progressAction(progress);
+                                    
+                                    // Small delay every 100 files to keep UI responsive
+                                    if (localChecked % 100 == 0)
+                                    {
+                                        await Task.Delay(1);
+                                    }
+                                }
                                 continue;
                             }
                             
@@ -782,21 +852,31 @@ namespace THJPatcher.Utilities
                                 {
                                     if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
                                     {
-                                        // Only log in debug mode or for non-dinput8 files
-                                        if (_isDebugMode)
+                                        // Limit logging to prevent flooding
+                                        bool shouldLog = Interlocked.Increment(ref loggedFileCount) <= MAX_LOGGED_FILES;
+                                        
+                                        if (shouldLog)
                                         {
-                                            if (entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase))
+                                            // Only log in debug mode or for non-dinput8 files
+                                            if (_isDebugMode)
                                             {
-                                                _logAction($"[DEBUG] Missing dinput8.dll detected");
+                                                if (entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    _logAction($"[DEBUG] Missing dinput8.dll detected");
+                                                }
+                                                else
+                                                {
+                                                    _logAction($"[DEBUG] Missing file detected: {entry.name}");
+                                                }
                                             }
-                                            else
+                                            else if (!entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase))
                                             {
-                                                _logAction($"[DEBUG] Missing file detected: {entry.name}");
+                                                _logAction($"Missing file detected: {entry.name}");
                                             }
                                         }
-                                        else if (!entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase))
+                                        else if (loggedFileCount == MAX_LOGGED_FILES + 1)
                                         {
-                                            _logAction($"Missing file detected: {entry.name}");
+                                            _logAction($"... and more files need to be downloaded (limiting log output)");
                                         }
                                         
                                         fullScanResults.Add(entry);
@@ -806,30 +886,7 @@ namespace THJPatcher.Utilities
                                         {
                                             if (!_filesToDownload.Any(f => f.name == entry.name))
                                             {
-                                                bool isMapFile = entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
-                                                               entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
-                                                               entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
-                                                    
-                                                bool isUiFile = entry.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
-                                                               entry.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase);
-                                                    
-                                                bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
-                                                    
-                                                // Always add UI files, map files, and dinput8.dll to download queue
-                                                if (isUiFile || isMapFile || isDinput8)
-                                                {
-                                                    _filesToDownload.Add(entry);
-                                                    
-                                                    if (_isDebugMode)
-                                                    {
-                                                        string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : "UI");
-                                                        _logAction($"[DEBUG] Added {fileType} file to download queue from full scan: {entry.name}");
-                                                    }
-                                                }
-                                                else
-                                                {
-                                                    _filesToDownload.Add(entry);
-                                                }
+                                                _filesToDownload.Add(entry);
                                             }
                                         }
                                     }
@@ -848,7 +905,10 @@ namespace THJPatcher.Utilities
                                             // Check if hash matches
                                             if (hash != entry.md5.ToUpperInvariant())
                                             {
-                                                if (_isDebugMode)
+                                                // Limit logging to prevent flooding
+                                                bool shouldLog = Interlocked.Increment(ref loggedFileCount) <= MAX_LOGGED_FILES;
+                                                
+                                                if (shouldLog && _isDebugMode)
                                                 {
                                                     _logAction($"[DEBUG] MD5 mismatch for {entry.name}");
                                                     _logAction($"[DEBUG] Expected: {entry.md5.ToUpperInvariant()}");
@@ -857,16 +917,20 @@ namespace THJPatcher.Utilities
                                                 
                                                 if (entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase))
                                                 {
-                                                    if (_isDebugMode)
+                                                    if (_isDebugMode && shouldLog)
                                                     {
                                                         _logAction($"[DEBUG] dinput8.dll is outdated");
                                                         _logAction($"[DEBUG] Current MD5: {hash}");
                                                         _logAction($"[DEBUG] Expected MD5: {entry.md5.ToUpperInvariant()}");
                                                     }
                                                 }
-                                                else
+                                                else if (shouldLog)
                                                 {
                                                     _logAction($"Content mismatch detected: {entry.name}");
+                                                }
+                                                else if (loggedFileCount == MAX_LOGGED_FILES + 1)
+                                                {
+                                                    _logAction($"... and more files need to be downloaded (limiting log output)");
                                                 }
                                                 
                                                 if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
@@ -879,29 +943,22 @@ namespace THJPatcher.Utilities
                                                         if (!_filesToDownload.Any(f => f.name == entry.name))
                                                         {
                                                             bool isMapFile = entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
-                                                                           entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
-                                                                           entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+                                                                          entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                                                          entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
                                                             
                                                             bool isUiFile = entry.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
-                                                                           entry.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase);
+                                                                          entry.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase);
                                                             
                                                             bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
                                                             
-                                                            // Always add UI files, map files, and dinput8.dll to download queue
-                                                            if (isUiFile || isMapFile || isDinput8)
+                                                            _filesToDownload.Add(entry);
+                                                            
+                                                            if (_isDebugMode && shouldLog)
                                                             {
-                                                                _filesToDownload.Add(entry);
-                                                                
-                                                                if (_isDebugMode)
-                                                                {
-                                                                    string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : "UI");
-                                                                    _logAction($"[DEBUG] Added {fileType} file to download queue from full scan: {entry.name}");
-                                                                }
+                                                                string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : (isUiFile ? "UI" : "file"));
+                                                                _logAction($"[DEBUG] Added {fileType} file to download queue from full scan: {entry.name}");
                                                             }
-                                                            else
-                                                            {
-                                                                _filesToDownload.Add(entry);
-                                                            }
+                                                        }
                                                     }
                                                 }
                                                 Interlocked.Exchange(ref allFilesIntactInt, 0); // Thread-safe set to false
@@ -921,10 +978,22 @@ namespace THJPatcher.Utilities
                                     }
                                 }
                                 
-                                // Update progress after each file
+                                // Update progress in batches for better performance
+                                localChecked++;
                                 int filesDone = Interlocked.Increment(ref checkedFiles);
-                                int progress = 5000 + (int)((double)filesDone / totalFiles * 5000);
-                                _progressAction(progress);
+                                
+                                // Only update progress every 10 files or at the end
+                                if (localChecked % 10 == 0 || partition.Current.Equals(filelist.downloads.Last()))
+                                {
+                                    int progress = 5000 + (int)((double)filesDone / totalFiles * 5000);
+                                    _progressAction(progress);
+                                    
+                                    // Small delay every 100 files to keep UI responsive
+                                    if (localChecked % 100 == 0)
+                                    {
+                                        await Task.Delay(1);
+                                    }
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -978,7 +1047,26 @@ namespace THJPatcher.Utilities
             }
             else
             {
-                _logAction($"Scan complete - {missingOrModifiedFiles.Count} file(s) need updating");
+                _logAction($"Scan complete - {_filesToDownload.Count} file(s) need updating");
+                
+                // Print summary of file types for debugging
+                if (_isDebugMode && _filesToDownload.Count > 0)
+                {
+                    var mapFilesCount = _filesToDownload.Where(f => 
+                        f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) || 
+                        f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) || 
+                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).Count();
+                    
+                    var uiFilesCount = _filesToDownload.Where(f => 
+                        f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) || 
+                        f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase)).Count();
+                    
+                    var dllFilesCount = _filesToDownload.Where(f => 
+                        f.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).Count();
+                    
+                    _logAction($"[DEBUG] File types to download: {mapFilesCount} map files, {uiFilesCount} UI files, {dllFilesCount} DLL files");
+                }
+                
                 return false;
             }
         }
