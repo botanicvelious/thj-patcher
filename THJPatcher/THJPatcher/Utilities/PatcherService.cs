@@ -189,6 +189,7 @@ namespace THJPatcher.Utilities
             // For limiting map file logging
             int loggedMapFiles = 0;
             const int maxLoggedMapFiles = 20; // Limit map file logging
+            int lastLoggedMapCount = 0; // Track the last number we logged to prevent duplicates
 
             // --- Parallel Download Phase (Unlocked Files) ---
             _logAction($"Starting download of {prioritizedFiles.Count} file(s)...");
@@ -285,12 +286,6 @@ namespace THJPatcher.Utilities
                                 {
                                     _logAction($"Progress: {currentProcessed}/{totalFiles} files ({(int)(currentProcessed * 100.0 / totalFiles)}%)");
                                 }
-                                else if (isMapFile && loggedMapFiles % 50 == 0)
-                                {
-                                    _logAction($"Downloaded {loggedMapFiles} map files so far");
-                                    // Force UI update for large batches
-                                    await Task.Delay(1);
-                                }
                                 
                                 break; // Exit retry loop on success
                             }
@@ -372,9 +367,21 @@ namespace THJPatcher.Utilities
                         // Consolidated map file reporting - report map download progress in ONE place only
                         if (success && isMapFile && loggedMapFiles % 50 == 0)
                         {
-                            _logAction($"Downloaded {loggedMapFiles} map files so far");
-                            // Force UI update for large batches
-                            await Task.Delay(1);
+                            // Use Interlocked to safely compare and update last logged count
+                            int mapCount = loggedMapFiles;
+                            
+                            // Only update if this is a higher count than previously logged
+                            if (mapCount > lastLoggedMapCount)
+                            {
+                                int prevCount = Interlocked.Exchange(ref lastLoggedMapCount, mapCount);
+                                // Only log if we successfully updated the lastLoggedMapCount
+                                if (prevCount < mapCount)
+                                {
+                                    _logAction($"Downloaded {mapCount} map files so far");
+                                    // Force UI update for large batches
+                                    await Task.Delay(1);
+                                }
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -400,7 +407,15 @@ namespace THJPatcher.Utilities
                 // After downloading map files, show a summary
                 if (loggedMapFiles > maxLoggedMapFiles)
                 {
-                    _logAction($"Downloaded a total of {loggedMapFiles} map files");
+                    // Use thread-safe approach for the final summary as well
+                    int finalMapCount = loggedMapFiles;
+                    int prevCount = Interlocked.CompareExchange(ref lastLoggedMapCount, finalMapCount, lastLoggedMapCount);
+                    
+                    // Only log if this count hasn't been logged before
+                    if (prevCount != finalMapCount && finalMapCount > prevCount)
+                    {
+                        _logAction($"Downloaded a total of {finalMapCount} map files");
+                    }
                 }
             }
             catch (OperationCanceledException)
