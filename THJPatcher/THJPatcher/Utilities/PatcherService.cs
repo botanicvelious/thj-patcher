@@ -104,8 +104,28 @@ namespace THJPatcher.Utilities
                 return (0, false);
             }
 
+            // --- Optimize download order by file type ---
+            // Group files by type for improved UI feedback
+            var mapFiles = filesToProcess.Where(f =>
+                f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var dllFiles = filesToProcess.Where(f =>
+                f.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var otherFiles = filesToProcess.Except(mapFiles).Except(dllFiles).ToList();
+
+            // Log download counts by type
+            if (dllFiles.Any())
+                _logAction($"Downloading {dllFiles.Count} DLL files...");
+            if (otherFiles.Any())
+                _logAction($"Downloading {otherFiles.Count} other game files...");
+            if (mapFiles.Any())
+                _logAction($"Downloading {mapFiles.Count} map files...");
+
             _logAction($"Found {filesToProcess.Count} files to update.");
-            await Task.Delay(1000); // Pause to show the message
+            await Task.Delay(500); // Shorter pause to show the message
 
             // Ensure download prefix ends with a slash
             if (!filelist.downloadprefix.EndsWith("/")) filelist.downloadprefix += "/";
@@ -139,7 +159,9 @@ namespace THJPatcher.Utilities
             if (totalBytes == 0) totalBytes = 1; // Avoid division by zero
 
             // Use class-level variables for tracking download progress
-            int currentBytes = 0;
+            int currentBytes = 0; // Start at 0, not 1
+            int processedFiles = 0;
+            int totalFiles = filesToProcess.Count;
             object progressLock = new object(); // Lock for progress updates
             
             // Create a semaphore to limit concurrent downloads
@@ -148,76 +170,25 @@ namespace THJPatcher.Utilities
             // Use faster throttling for progress updates
             _lastProgressUpdateTime = DateTime.MinValue;
 
-            // Helper method to update progress
+            // Helper method to update progress with combined file count and byte metrics
             void UpdateCombinedProgress()
             {
-                int progressPercentage = (int)((double)currentBytes / totalBytes * 10000);
-                UpdateProgressWithThrottling(Math.Min(progressPercentage, 10000));
+                double fileProgress = (double)processedFiles / totalFiles;
+                double byteProgress = (double)currentBytes / totalBytes;
+                double combinedProgress = (fileProgress + byteProgress) / 2.0 * 10000;
+                UpdateProgressWithThrottling((int)combinedProgress);
             }
             
-            // --- Optimize download order ---
-            // Prioritize small, important files first for better user experience
-            var prioritizedFiles = unlockedFiles.ToList();
+            // Process files in a specific order: DLLs first, then other files, maps last
+            var orderedFiles = new List<FileEntry>();
+            orderedFiles.AddRange(dllFiles);
+            orderedFiles.AddRange(otherFiles);
+            orderedFiles.AddRange(mapFiles);
+            var prioritizedFiles = orderedFiles;
             
-            // Step 1: Sort by priority category then by size within each category
-            var priorityGroups = new List<List<FileEntry>>();
-            
-            // Group 1: Critical system files (dinput8.dll, etc) - highest priority
-            var criticalFiles = prioritizedFiles
-                .Where(f => f.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase) ||
-                           f.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) && f.size < 1024 * 1024)
-                .OrderBy(f => f.size)
-                .ToList();
-            
-            // Group 2: UI files (medium size) - second priority
-            var uiFiles = prioritizedFiles
-                .Where(f => (f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase) ||
-                           f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase)) &&
-                           !criticalFiles.Contains(f))
-                .OrderBy(f => f.size)
-                .ToList();
-            
-            // Group 3: Small regular files (< 10MB) - third priority
-            var smallFiles = prioritizedFiles
-                .Where(f => f.size < 10 * 1024 * 1024 && 
-                           !criticalFiles.Contains(f) && 
-                           !uiFiles.Contains(f))
-                .OrderBy(f => f.size)
-                .ToList();
-            
-            // Group 4: Medium files (10-100MB) - fourth priority
-            var mediumFiles = prioritizedFiles
-                .Where(f => f.size >= 10 * 1024 * 1024 && 
-                           f.size < 100 * 1024 * 1024 && 
-                           !criticalFiles.Contains(f) && 
-                           !uiFiles.Contains(f) && 
-                           !smallFiles.Contains(f))
-                .OrderBy(f => f.size)
-                .ToList();
-            
-            // Group 5: Large files (>= 100MB) - lowest priority
-            var largeFiles = prioritizedFiles
-                .Where(f => f.size >= 100 * 1024 * 1024 && 
-                           !criticalFiles.Contains(f) && 
-                           !uiFiles.Contains(f) && 
-                           !smallFiles.Contains(f) && 
-                           !mediumFiles.Contains(f))
-                .OrderBy(f => f.size)
-                .ToList();
-            
-            // Create a new ordered list based on priority
-            prioritizedFiles.Clear();
-            prioritizedFiles.AddRange(criticalFiles);
-            prioritizedFiles.AddRange(uiFiles);
-            prioritizedFiles.AddRange(smallFiles);
-            prioritizedFiles.AddRange(mediumFiles);
-            prioritizedFiles.AddRange(largeFiles);
-            
-            if (_isDebugMode)
-            {
-                _logAction($"[DEBUG] Download order optimized: {criticalFiles.Count} critical, {uiFiles.Count} UI, " +
-                          $"{smallFiles.Count} small, {mediumFiles.Count} medium, {largeFiles.Count} large files");
-            }
+            // For limiting map file logging
+            int loggedMapFiles = 0;
+            const int maxLoggedMapFiles = 20; // Limit map file logging
 
             // --- Parallel Download Phase (Unlocked Files) ---
             _logAction($"Starting download of {prioritizedFiles.Count} file(s)...");
@@ -240,6 +211,26 @@ namespace THJPatcher.Utilities
                         bool success = false;
                         string actualHash = null;
                         var path = Path.Combine(baseDir, entry.name.Replace("/", "\\"));
+
+                        // Determine if this is a map file for logging purposes
+                        bool isMapFile = entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                        entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                                        entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+
+                        // For map files, limit logging to prevent UI flooding
+                        bool shouldLogFile = !isMapFile;
+                        if (isMapFile)
+                        {
+                            int mapFileNumber = Interlocked.Increment(ref loggedMapFiles);
+                            shouldLogFile = mapFileNumber <= maxLoggedMapFiles || (mapFileNumber % 50 == 0);
+                            
+                            // For map files, periodically force UI updates
+                            if (mapFileNumber % 10 == 0)
+                            {
+                                // Force a small delay to keep UI responsive during map processing
+                                await Task.Delay(1);
+                            }
+                        }
 
                         // Create directory if it doesn't exist
                         string directory = Path.GetDirectoryName(path);
@@ -270,7 +261,7 @@ namespace THJPatcher.Utilities
                             if (cancellationToken.IsCancellationRequested) break;
 
                             string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
-                            if (_isDebugMode) _logAction($"[DEBUG] Attempt {attempt}: Downloading {entry.name} from {url}");
+                            if (_isDebugMode && shouldLogFile) _logAction($"[DEBUG] Attempt {attempt}: Downloading {entry.name} from {url}");
 
                             var (downloadSuccess, hashResult) = await UtilityLibrary.DownloadFileAndVerifyHashAsync(
                                 cancellationToken, url, entry.name, entry.md5, progressCallback);
@@ -280,7 +271,27 @@ namespace THJPatcher.Utilities
                             if (downloadSuccess)
                             {
                                 success = true;
-                                _logAction($"Completed: {entry.name} ({FormattingUtils.GenerateSize(entry.size)})");
+                                
+                                if (shouldLogFile)
+                                {
+                                    _logAction($"Completed: {entry.name} ({FormattingUtils.GenerateSize(entry.size)})");
+                                }
+                                
+                                // Periodically provide download status for different file types
+                                int currentProcessed = Interlocked.Increment(ref processedFiles);
+                                
+                                // Provide summary updates at intervals
+                                if (currentProcessed % 20 == 0 && !isMapFile)
+                                {
+                                    _logAction($"Progress: {currentProcessed}/{totalFiles} files ({(int)(currentProcessed * 100.0 / totalFiles)}%)");
+                                }
+                                else if (isMapFile && loggedMapFiles % 50 == 0)
+                                {
+                                    _logAction($"Downloaded {loggedMapFiles} map files so far");
+                                    // Force UI update for large batches
+                                    await Task.Delay(1);
+                                }
+                                
                                 break; // Exit retry loop on success
                             }
                             else
@@ -288,7 +299,7 @@ namespace THJPatcher.Utilities
                                 // Try backup URL on primary failure
                                 string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
                                 
-                                if (_isDebugMode) _logAction($"[DEBUG] Primary URL failed, trying backup URL: {backupUrl}");
+                                if (_isDebugMode && shouldLogFile) _logAction($"[DEBUG] Primary URL failed, trying backup URL: {backupUrl}");
                                 
                                 (downloadSuccess, hashResult) = await UtilityLibrary.DownloadFileAndVerifyHashAsync(
                                     cancellationToken, backupUrl, entry.name, entry.md5, progressCallback);
@@ -298,19 +309,38 @@ namespace THJPatcher.Utilities
                                 if (downloadSuccess)
                                 {
                                     success = true;
-                                    _logAction($"Completed: {entry.name} ({FormattingUtils.GenerateSize(entry.size)})");
+                                    if (shouldLogFile)
+                                    {
+                                        _logAction($"Completed: {entry.name} ({FormattingUtils.GenerateSize(entry.size)})");
+                                    }
+                                    
+                                    // Update file counter and provide periodic summaries
+                                    int currentProcessed = Interlocked.Increment(ref processedFiles);
+                                    
+                                    // Provide summary updates at intervals
+                                    if (currentProcessed % 20 == 0 && !isMapFile)
+                                    {
+                                        _logAction($"Progress: {currentProcessed}/{totalFiles} files ({(int)(currentProcessed * 100.0 / totalFiles)}%)");
+                                    }
+                                    else if (isMapFile && loggedMapFiles % 50 == 0)
+                                    {
+                                        _logAction($"Downloaded {loggedMapFiles} map files so far");
+                                        // Force UI update for large batches
+                                        await Task.Delay(1);
+                                    }
+                                    
                                     break; // Exit retry loop on success
                                 }
-                                else if (hashResult != null)
+                                else if (hashResult != null && shouldLogFile)
                                 {
                                     _logAction($"[Warning] Hash mismatch for {entry.name}. Expected: {entry.md5.ToUpper()}, Got: {hashResult}");
                                 }
-                                else
+                                else if (shouldLogFile)
                                 {
                                     _logAction($"[Warning] Failed to download {entry.name}");
                                 }
 
-                                if (attempt < maxRetries)
+                                if (attempt < maxRetries && shouldLogFile)
                                 {
                                     _logAction($"Retrying download of {entry.name} (attempt {attempt+1}/{maxRetries})...");
                                     await Task.Delay(1000 * attempt); // Exponential backoff
@@ -327,13 +357,22 @@ namespace THJPatcher.Utilities
                             }
                             else
                             {
-                                _logAction($"[Error] Failed to download and verify {entry.name} after {maxRetries} attempts.");
-                                if (actualHash != null)
+                                if (shouldLogFile)
                                 {
-                                    _logAction($"[Error] Last hash: {actualHash}, Expected: {entry.md5.ToUpper()}");
+                                    _logAction($"[Error] Failed to download and verify {entry.name} after {maxRetries} attempts.");
+                                    if (actualHash != null)
+                                    {
+                                        _logAction($"[Error] Last hash: {actualHash}, Expected: {entry.md5.ToUpper()}");
+                                    }
                                 }
                                 hasErrors = true;
                             }
+                        }
+                        
+                        // Periodically update UI thread to keep it responsive
+                        if (processedFiles % 20 == 0)
+                        {
+                            await Task.Delay(1); // Small delay to allow UI to process
                         }
                     }
                     catch (Exception ex)
@@ -355,6 +394,12 @@ namespace THJPatcher.Utilities
             {
                 // Wait for all parallel downloads to complete
                 await Task.WhenAll(downloadTasks);
+                
+                // After downloading map files, show a summary
+                if (loggedMapFiles > maxLoggedMapFiles)
+                {
+                    _logAction($"Downloaded a total of {loggedMapFiles} map files");
+                }
             }
             catch (OperationCanceledException)
             {
@@ -368,34 +413,39 @@ namespace THJPatcher.Utilities
                 return (patchedBytes, true);
             }
 
-            // --- Sequential Download Phase (Locked Files) ---
+            // --- Special Handling for Locked Files ---
+            // Handle any files that were locked during parallel download
             if (lockedFiles.Count > 0)
             {
-                _logAction($"Processing {lockedFiles.Count} locked file(s)...");
+                _logAction($"Processing {lockedFiles.Count} locked files...");
                 
-                foreach (var entry in lockedFiles)
+                // Process locked files sequentially
+                foreach (var lockedFile in lockedFiles)
                 {
                     if (cancellationToken.IsCancellationRequested)
                     {
-                        _logAction("Patching cancelled during locked file handling.");
+                        _logAction("Processing of locked files cancelled.");
                         return (patchedBytes, true);
                     }
 
-                    var path = Path.Combine(baseDir, entry.name.Replace("/", "\\"));
-                    bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
-
-                    if (await HandleSpecialDllDownload(entry, filelist, path, isDinput8, true, cancellationToken))
+                    // For DLL files that are locked, use special dll replacement technique
+                    if (lockedFile.name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
                     {
-                        lock (progressLock)
+                        bool success = await HandleLockedDllFileAsync(lockedFile, filelist.downloadprefix);
+                        if (success)
                         {
-                            currentBytes += entry.size;
-                            patchedBytes += entry.size;
-                            UpdateCombinedProgress();
+                            patchedBytes += lockedFile.size;
+                            _logAction($"Successfully queued replacement for locked DLL: {lockedFile.name}");
+                        }
+                        else
+                        {
+                            hasErrors = true;
+                            _logAction($"[Error] Failed to handle locked DLL: {lockedFile.name}");
                         }
                     }
                     else
                     {
-                        _logAction($"[Warning] Failed to handle locked file: {entry.name}");
+                        _logAction($"[Warning] Skipping locked file: {lockedFile.name}");
                         hasErrors = true;
                     }
                 }
@@ -404,172 +454,85 @@ namespace THJPatcher.Utilities
             // Final progress update
             UpdateProgressWithThrottling(10000);
 
+            // Return the total bytes updated and whether there were any errors
             return (patchedBytes, hasErrors);
         }
 
-        /// <summary>
-        /// Handles download and scheduling of locked DLL files
-        /// </summary>
-        private async Task<bool> HandleSpecialDllDownload(
-            FileEntry entry, 
-            FileList filelist, 
-            string path, 
-            bool isDinput8, 
-            bool isFileInUse,
-            CancellationTokenSource cancellationToken)
+        // Special method to handle locked DLL files by using Windows File Replace API
+        private async Task<bool> HandleLockedDllFileAsync(FileEntry lockedFile, string downloadPrefix)
         {
             try
             {
-                _logAction($"[Info] Using special handling for {entry.name}");
-
-                // Create a temp backup path with unique name to avoid conflicts
-                string tempFileName = $"{Path.GetFileNameWithoutExtension(path)}_{Guid.NewGuid().ToString().Substring(0, 8)}.tmp";
-                string tempPath = Path.Combine(Path.GetDirectoryName(path), tempFileName);
-                string directory = Path.GetDirectoryName(tempPath);
+                var baseDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+                var targetPath = Path.Combine(baseDir, lockedFile.name.Replace("/", "\\"));
                 
+                // Create a temporary file path for the download
+                var tempFilePath = Path.Combine(
+                    Path.GetDirectoryName(targetPath), 
+                    $"{Path.GetFileNameWithoutExtension(targetPath)}_new{Path.GetExtension(targetPath)}");
+                
+                // Download to temp file
+                string url = downloadPrefix + lockedFile.name.Replace("\\", "/");
+                
+                // Create directory if it doesn't exist
+                string directory = Path.GetDirectoryName(tempFilePath);
                 if (!Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
                 }
-
-                // Use our new streaming hash verification
-                bool downloadSuccess = false;
-                string actualHash = null;
-                int maxRetries = 3;
-
-                for (int attempt = 1; attempt <= maxRetries; attempt++)
-                {
-                    if (cancellationToken.IsCancellationRequested) break;
-
-                    // Try primary URL first
-                    string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
-                    if (_isDebugMode) _logAction($"[DEBUG] Attempt {attempt}: Downloading {entry.name} to temp file using {url}");
-
-                    var (success, hashResult) = await UtilityLibrary.DownloadFileAndVerifyHashAsync(
-                        cancellationToken, url, tempPath, entry.md5, null); // No progress callback for now
-                    
-                    actualHash = hashResult;
-                    
-                    if (success)
-                    {
-                        downloadSuccess = true;
-                        break;
-                    }
-                    else
-                    {
-                        // Try backup URL on primary failure
-                        string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
-                        
-                        if (_isDebugMode) _logAction($"[DEBUG] Primary URL failed, trying backup URL: {backupUrl}");
-                        
-                        (success, hashResult) = await UtilityLibrary.DownloadFileAndVerifyHashAsync(
-                            cancellationToken, tempPath, entry.name, entry.md5, null); // No progress callback
-                        
-                        actualHash = hashResult;
-                        
-                        if (success)
-                        {
-                            downloadSuccess = true;
-                            break;
-                        }
-                        else if (attempt < maxRetries)
-                        {
-                            if (hashResult != null)
-                            {
-                                _logAction($"[Warning] Hash mismatch for {entry.name}. Expected: {entry.md5.ToUpper()}, Got: {hashResult}");
-                            }
-                            else
-                            {
-                                _logAction($"[Warning] Failed to download {entry.name} to temp file");
-                            }
-                            _logAction($"Retrying download of {entry.name} (attempt {attempt+1}/{maxRetries})...");
-                            await Task.Delay(1000 * attempt); // Exponential backoff
-                        }
-                    }
-                }
+                
+                _logAction($"Downloading replacement for locked DLL: {lockedFile.name}");
+                
+                // Download to temporary file
+                var (downloadSuccess, hashResult) = await UtilityLibrary.DownloadFileAndVerifyHashAsync(
+                    new CancellationTokenSource(), 
+                    url, 
+                    tempFilePath, 
+                    lockedFile.md5,
+                    null); // No progress callback for these special cases
 
                 if (!downloadSuccess)
                 {
-                    _logAction($"[Error] Failed to download {entry.name} to temp file after {maxRetries} attempts");
-                    return false;
+                    // Try backup URL
+                    string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + lockedFile.name.Replace("\\", "/");
+                    (downloadSuccess, hashResult) = await UtilityLibrary.DownloadFileAndVerifyHashAsync(
+                        new CancellationTokenSource(), 
+                        backupUrl, 
+                        tempFilePath, 
+                        lockedFile.md5,
+                        null);
                 }
 
-                // Verify the temp file exists
-                if (!File.Exists(tempPath))
+                if (downloadSuccess)
                 {
-                    _logAction($"[Error] Temp file for {entry.name} not created properly");
-                    return false;
-                }
-
-                // If the file is not in use (which shouldn't happen, but just in case), try direct replacement
-                if (!isFileInUse)
-                {
-                    try
+                    // Queue the file for replacement on next application start
+                    _logAction($"Downloaded replacement for locked DLL: {lockedFile.name}");
+                    
+                    bool queued = UtilityLibrary.QueueFileReplacement(tempFilePath, targetPath);
+                    if (queued)
                     {
-                        _logAction($"[Info] Attempting direct replacement of {entry.name}");
-                        if (File.Exists(path))
-                        {
-                            File.Delete(path);
-                        }
-                        File.Move(tempPath, path);
-                        _logAction($"Successfully updated {entry.name}");
+                        _logAction($"Successfully queued {lockedFile.name} for replacement on next start");
                         return true;
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        _logAction($"[Warning] Direct replacement failed: {ex.Message}");
-                        // Fall through to the other methods
-                        isFileInUse = true; // Treat as in-use for the next steps
+                        _logAction($"[Error] Failed to queue {lockedFile.name} for replacement");
+                        return false;
                     }
                 }
-
-                // Schedule the file to be replaced on next reboot if it's in use
-                if (isFileInUse && _isAdministrator)
+                else
                 {
-                    try
+                    _logAction($"[Error] Failed to download replacement for locked DLL: {lockedFile.name}");
+                    if (hashResult != null)
                     {
-                        _logAction($"[Info] Scheduling {entry.name} replacement on reboot");
-                        // Try Windows' MoveFileEx API to replace on reboot
-                        if (UtilityLibrary.ScheduleFileOperation(tempPath, path, UtilityLibrary.MoveFileFlags.MOVEFILE_DELAY_UNTIL_REBOOT | UtilityLibrary.MoveFileFlags.MOVEFILE_REPLACE_EXISTING))
-                        {
-                            _logAction($"{entry.name} will be updated on next reboot");
-                            return true;
-                        }
-                        else
-                        {
-                            _logAction($"[Warning] Failed to schedule {entry.name} replacement");
-                        }
+                        _logAction($"[Error] Hash mismatch. Expected: {lockedFile.md5.ToUpper()}, Got: {hashResult}");
                     }
-                    catch (Exception ex)
-                    {
-                        _logAction($"[Warning] Could not schedule {entry.name} replacement: {ex.Message}");
-                    }
+                    return false;
                 }
-
-                // If MoveFileEx fails or we're not admin, try a more aggressive approach
-                try
-                {
-                    _logAction($"[Info] Attempting aggressive replacement of {entry.name}");
-                    File.Delete(path);
-                    File.Move(tempPath, path);
-                    _logAction($"Successfully updated {entry.name}");
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    _logAction($"[Warning] Could not force update {entry.name}: {ex.Message}");
-                    if (File.Exists(tempPath))
-                    {
-                        // Keep the temp file for next run
-                        _logAction($"Keeping temporary file for {entry.name} for next run");
-                    }
-                }
-
-                return false;
             }
             catch (Exception ex)
             {
-                _logAction($"[Warning] Special handling for {entry.name} failed: {ex.Message}");
+                _logAction($"[Error] Exception handling locked DLL {lockedFile.name}: {ex.Message}");
                 return false;
             }
         }

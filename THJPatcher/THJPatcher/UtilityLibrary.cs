@@ -392,5 +392,40 @@ namespace THJPatcher
         {
             return MoveFileEx(existingFile, newFile, flags);
         }
+        
+        /// <summary>
+        /// Queues a file replacement using the Windows MoveFileEx API with MOVEFILE_DELAY_UNTIL_REBOOT flag.
+        /// This schedules the file to be replaced on the next system reboot.
+        /// </summary>
+        /// <param name="sourceFile">The path to the source file (new file)</param>
+        /// <param name="destinationFile">The path to the destination file (file to be replaced)</param>
+        /// <returns>True if the file replacement was successfully queued, false otherwise</returns>
+        public static bool QueueFileReplacement(string sourceFile, string destinationFile)
+        {
+            try
+            {
+                // Ensure both files exist
+                if (!File.Exists(sourceFile))
+                {
+                    Debug.WriteLine($"[Error] Source file does not exist: {sourceFile}");
+                    return false;
+                }
+                
+                // Create the directory for the destination file if it doesn't exist
+                string destinationDir = Path.GetDirectoryName(destinationFile);
+                if (!string.IsNullOrEmpty(destinationDir) && !Directory.Exists(destinationDir))
+                {
+                    Directory.CreateDirectory(destinationDir);
+                }
+                
+                // Use MoveFileEx to schedule the file replacement on next reboot
+                return MoveFileEx(sourceFile, destinationFile, MoveFileFlags.MOVEFILE_DELAY_UNTIL_REBOOT | MoveFileFlags.MOVEFILE_REPLACE_EXISTING);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Error] Failed to queue file replacement: {ex.Message}");
+                return false;
+            }
+        }
     }
 }
