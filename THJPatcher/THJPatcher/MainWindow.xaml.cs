@@ -55,6 +55,9 @@ namespace THJPatcher
         private static string serverName;
         private static string filelistUrl;
 
+        // Add a field to track initialization state
+        private bool hasInitialized = false;
+
         // Supported client versions
         public static List<VersionTypes> supportedClients = new List<VersionTypes> {
             VersionTypes.Rain_Of_Fear,
@@ -405,6 +408,10 @@ namespace THJPatcher
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // Prevent duplicate initialization
+            if (hasInitialized) return;
+            hasInitialized = true;
+            
             isLoading = true;
             cts = new CancellationTokenSource();
 
