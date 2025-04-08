@@ -317,16 +317,10 @@ namespace THJPatcher.Utilities
                                     // Update file counter and provide periodic summaries
                                     int currentProcessed = Interlocked.Increment(ref processedFiles);
                                     
-                                    // Provide summary updates at intervals
+                                    // Provide summary updates at intervals - ONLY log non-map file progress here
                                     if (currentProcessed % 20 == 0 && !isMapFile)
                                     {
                                         _logAction($"Progress: {currentProcessed}/{totalFiles} files ({(int)(currentProcessed * 100.0 / totalFiles)}%)");
-                                    }
-                                    else if (isMapFile && loggedMapFiles % 50 == 0)
-                                    {
-                                        _logAction($"Downloaded {loggedMapFiles} map files so far");
-                                        // Force UI update for large batches
-                                        await Task.Delay(1);
                                     }
                                     
                                     break; // Exit retry loop on success
@@ -373,6 +367,14 @@ namespace THJPatcher.Utilities
                         if (processedFiles % 20 == 0)
                         {
                             await Task.Delay(1); // Small delay to allow UI to process
+                        }
+                        
+                        // Consolidated map file reporting - report map download progress in ONE place only
+                        if (success && isMapFile && loggedMapFiles % 50 == 0)
+                        {
+                            _logAction($"Downloaded {loggedMapFiles} map files so far");
+                            // Force UI update for large batches
+                            await Task.Delay(1);
                         }
                     }
                     catch (Exception ex)
