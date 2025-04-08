@@ -744,7 +744,7 @@ namespace THJPatcher
 
         private async Task RunFileIntegrityScanAsync(bool fullScanOnly = false)
         {
-            using var cts = new CancellationTokenSource();
+            var cts = new CancellationTokenSource();
             cts.Token.Register(() => StatusLibrary.Log("File scan cancelled."));
 
             try
@@ -753,6 +753,7 @@ namespace THJPatcher
                 if (cts.IsCancellationRequested)
                 {
                     StatusLibrary.Log("Resetting cancellation token for file scan");
+                    cts.Dispose(); // Dispose the old one first
                     cts = new CancellationTokenSource();
                 }
                 
