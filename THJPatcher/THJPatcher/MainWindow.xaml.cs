@@ -742,6 +742,13 @@ namespace THJPatcher
 
             try
             {
+                // Reset cancellation token source if needed
+                if (cts.IsCancellationRequested)
+                {
+                    StatusLibrary.Log("Resetting cancellation token for file scan");
+                    cts = new CancellationTokenSource();
+                }
+                
                 // Use the FileSystemService to run the file integrity scan
                 bool filesAreUpToDate = await fileSystemService.RunFileIntegrityScanAsync(cts, null, fullScanOnly);
                 
@@ -756,12 +763,14 @@ namespace THJPatcher
                         // All files are up to date, show play button
                         btnPatch.Visibility = Visibility.Collapsed;
                         btnPlay.Visibility = Visibility.Visible;
+                        btnPlay.IsEnabled = true;
                     }
                     else if (filesToDownload.Count > 0)
                     {
                         // Files need updating, show patch button
                         btnPatch.Visibility = Visibility.Visible;
                         btnPlay.Visibility = Visibility.Collapsed;
+                        btnPatch.IsEnabled = true;
                         
                         // If auto-patch is enabled, start patching automatically
                         if (isAutoPatch && !isNeedingSelfUpdate)

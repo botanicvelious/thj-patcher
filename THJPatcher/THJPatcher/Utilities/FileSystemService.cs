@@ -156,6 +156,7 @@ namespace THJPatcher.Utilities
                 string filelistResponse = "";
 
                 // Try primary URL first
+                _logAction("Downloading file list...");
                 filelistResponse = await UtilityLibrary.DownloadFile(cancellationToken, webUrl, "filelist.yml", 
                     (bytesRead, totalBytes) => 
                     {
@@ -235,11 +236,19 @@ namespace THJPatcher.Utilities
                 f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) || 
                 f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase)).ToList();
             
+            var mapFiles = filelist.downloads.Where(f => 
+                f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) || 
+                f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) || 
+                f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+            
             var otherFiles = filelist.downloads.Where(f => 
                 !f.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase) && 
                 !f.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) && 
                 !f.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase) &&
-                !f.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase)).ToList();
+                !f.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase) &&
+                !f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) && 
+                !f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) &&
+                !f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
             
             // Process dinput8.dll first as a high priority
             if (dinput8File != null)
@@ -256,6 +265,117 @@ namespace THJPatcher.Utilities
                 {
                     quickCheckPassed = false;
                 }
+            }
+            
+            // Process map files next (high priority for specific game functionality)
+            foreach (var entry in mapFiles)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    _logAction("File scan cancelled.");
+                    return false;
+                }
+                
+                await throttler.WaitAsync(cancellationToken.Token);
+                
+                scanTasks.Add(Task.Run(async () => 
+                {
+                    try
+                    {
+                        if (_isDebugMode)
+                        {
+                            _logAction($"[DEBUG] Processing map file: {entry.name}");
+                        }
+                        
+                        var path = Path.Combine(baseDirectory, entry.name.Replace("/", "\\"));
+                        
+                        if (!UtilityLibrary.IsPathChild(path))
+                        {
+                            _logAction($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
+                            return;
+                        }
+                        
+                        bool isFileModified = false;
+                        
+                        // Check if file exists
+                        if (!File.Exists(path))
+                        {
+                            if (_isDebugMode)
+                            {
+                                _logAction($"[DEBUG] Missing map file detected: {entry.name}");
+                            }
+                            
+                            _logAction($"Missing map file detected: {entry.name}");
+                            missingOrModifiedFiles.Add(entry);
+                            
+                            // Add to download queue for map files
+                            lock (_filesToDownload)
+                            {
+                                if (!_filesToDownload.Any(f => f.name == entry.name))
+                                {
+                                    _filesToDownload.Add(entry);
+                                    if (_isDebugMode)
+                                    {
+                                        _logAction($"[DEBUG] Added missing map file to download queue: {entry.name}");
+                                    }
+                                }
+                            }
+                            
+                            isFileModified = true;
+                        }
+                        else
+                        {
+                            // For map files, check size first
+                            var fileInfo = new FileInfo(path);
+                            if (fileInfo.Length != entry.size)
+                            {
+                                if (_isDebugMode)
+                                {
+                                    _logAction($"[DEBUG] Map file size mismatch detected: {entry.name}");
+                                }
+                                
+                                _logAction($"Size mismatch detected: {entry.name}");
+                                missingOrModifiedFiles.Add(entry);
+                                
+                                // Add map files with mismatched size to download queue
+                                lock (_filesToDownload)
+                                {
+                                    if (!_filesToDownload.Any(f => f.name == entry.name))
+                                    {
+                                        _filesToDownload.Add(entry);
+                                        if (_isDebugMode)
+                                        {
+                                            _logAction($"[DEBUG] Added mismatched map file to download queue: {entry.name}");
+                                        }
+                                    }
+                                }
+                                
+                                isFileModified = true;
+                            }
+                        }
+                        
+                        if (isFileModified)
+                        {
+                            Interlocked.Exchange(ref quickCheckPassedInt, 0); // Thread-safe set to false
+                        }
+                        
+                        // Update progress after each file
+                        int filesDone = Interlocked.Increment(ref checkedFiles);
+                        int progress = 200 + (int)((double)filesDone / totalFiles * 4800);
+                        _progressAction(progress);
+                    }
+                    finally
+                    {
+                        throttler.Release();
+                    }
+                }, cancellationToken.Token));
+            }
+            
+            // Wait for map file scanning to complete
+            if (scanTasks.Count > 0)
+            {
+                await Task.WhenAll(scanTasks);
+                scanTasks.Clear();
             }
             
             // Process UI files next (high priority for quick detection)
@@ -373,6 +493,28 @@ namespace THJPatcher.Utilities
             if (_filesToDownload.Count > 0)
             {
                 _logAction($"Found {_filesToDownload.Count} UI file(s) that need to be patched.");
+                
+                // Print out map files detected (for debugging)
+                if (_isDebugMode)
+                {
+                    var mapFilesToDownload = _filesToDownload.Where(f =>
+                        f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                    if (mapFilesToDownload.Any())
+                    {
+                        _logAction($"[DEBUG] Found {mapFilesToDownload.Count} map files that need downloading:");
+                        foreach (var map in mapFilesToDownload.Take(10))
+                        {
+                            _logAction($"[DEBUG] Map: {map.name}");
+                        }
+                        if (mapFilesToDownload.Count > 10)
+                        {
+                            _logAction($"[DEBUG] And {mapFilesToDownload.Count - 10} more map files...");
+                        }
+                    }
+                }
                 
                 // Update integrity check status
                 IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
@@ -513,6 +655,28 @@ namespace THJPatcher.Utilities
             {
                 _logAction($"Found {_filesToDownload.Count} file(s) that need to be patched.");
                 
+                // Print out map files detected (for debugging)
+                if (_isDebugMode)
+                {
+                    var mapFilesToDownload = _filesToDownload.Where(f =>
+                        f.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                        f.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                    if (mapFilesToDownload.Any())
+                    {
+                        _logAction($"[DEBUG] Found {mapFilesToDownload.Count} map files that need downloading:");
+                        foreach (var map in mapFilesToDownload.Take(10))
+                        {
+                            _logAction($"[DEBUG] Map: {map.name}");
+                        }
+                        if (mapFilesToDownload.Count > 10)
+                        {
+                            _logAction($"[DEBUG] And {mapFilesToDownload.Count - 10} more map files...");
+                        }
+                    }
+                }
+                
                 // Update integrity check status
                 IniLibrary.instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
                 IniLibrary.instance.QuickCheckStatus = "failed";
@@ -642,7 +806,30 @@ namespace THJPatcher.Utilities
                                         {
                                             if (!_filesToDownload.Any(f => f.name == entry.name))
                                             {
-                                                _filesToDownload.Add(entry);
+                                                bool isMapFile = entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                                                               entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                                               entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+                                                    
+                                                bool isUiFile = entry.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
+                                                               entry.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase);
+                                                    
+                                                bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
+                                                    
+                                                // Always add UI files, map files, and dinput8.dll to download queue
+                                                if (isUiFile || isMapFile || isDinput8)
+                                                {
+                                                    _filesToDownload.Add(entry);
+                                                    
+                                                    if (_isDebugMode)
+                                                    {
+                                                        string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : "UI");
+                                                        _logAction($"[DEBUG] Added {fileType} file to download queue from full scan: {entry.name}");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    _filesToDownload.Add(entry);
+                                                }
                                             }
                                         }
                                     }
@@ -691,8 +878,30 @@ namespace THJPatcher.Utilities
                                                     {
                                                         if (!_filesToDownload.Any(f => f.name == entry.name))
                                                         {
-                                                            _filesToDownload.Add(entry);
-                                                        }
+                                                            bool isMapFile = entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                                                                           entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                                                           entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+                                                            
+                                                            bool isUiFile = entry.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
+                                                                           entry.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase);
+                                                            
+                                                            bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
+                                                            
+                                                            // Always add UI files, map files, and dinput8.dll to download queue
+                                                            if (isUiFile || isMapFile || isDinput8)
+                                                            {
+                                                                _filesToDownload.Add(entry);
+                                                                
+                                                                if (_isDebugMode)
+                                                                {
+                                                                    string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : "UI");
+                                                                    _logAction($"[DEBUG] Added {fileType} file to download queue from full scan: {entry.name}");
+                                                                }
+                                                            }
+                                                            else
+                                                            {
+                                                                _filesToDownload.Add(entry);
+                                                            }
                                                     }
                                                 }
                                                 Interlocked.Exchange(ref allFilesIntactInt, 0); // Thread-safe set to false
