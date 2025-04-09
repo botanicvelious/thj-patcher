@@ -3,8 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:THJPatcher"
+        xmlns:converters="clr-namespace:THJPatcher.Converters"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         mc:Ignorable="d"
         Title="The Heroes Journey" Height="768" Width="1024"
         WindowStyle="None" 
@@ -29,8 +30,8 @@
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <local:BooleanOrConverter x:Key="BooleanOrConverter"/>
-            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <!-- Boolean OR converter for button enabling logic -->
+            <converters:BooleanOrConverter x:Key="BooleanOrConverter"/>
 
             <!-- Custom Tooltip Style -->
             <Style TargetType="ToolTip" BasedOn="{StaticResource MaterialDesignToolTip}">
@@ -63,6 +64,12 @@
             <Style x:Key="PatchButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
                 <Setter Property="BorderThickness" Value="2"/>
                 <Setter Property="BorderBrush" Value="#8B0000"/>
+                <Style.Triggers>
+                    <Trigger Property="Tag" Value="True">
+                        <Setter Property="Background" Value="#808080"/>
+                        <Setter Property="Foreground" Value="#CCCCCC"/>
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
             <!-- Play Button Style -->
@@ -84,6 +91,11 @@
                         <Setter Property="Background" Value="Transparent"/>
                     </Trigger>
                 </Style.Triggers>
+            </Style>
+
+            <!-- Styles -->
+            <Style TargetType="{x:Type Window}">
+                <Setter Property="FontFamily" Value="Segoe UI"/>
             </Style>
         </ResourceDictionary>
     </Window.Resources>

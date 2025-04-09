@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,7 +18,7 @@ namespace THJPatcher
         Broken_Mirror
     }
 
-    class ClientVersion
+    public class ClientVersion
     {
         public string FullName;
         public string ShortName;
@@ -29,4 +29,4 @@ namespace THJPatcher
             ShortName = sName;
         }
     }
-}
+} 
