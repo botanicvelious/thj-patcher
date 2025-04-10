@@ -114,7 +114,13 @@ namespace THJPatcher
             {
                 FileName = System.IO.Path.GetDirectoryName(Application.ExecutablePath) + "\\eqgame.exe",
                 Arguments = "patchme",
-                WorkingDirectory = System.IO.Path.GetDirectoryName(Application.ExecutablePath)
+                WorkingDirectory = System.IO.Path.GetDirectoryName(Application.ExecutablePath),
+                UseShellExecute = true,
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
+                CreateNoWindow = false,
+                LoadUserProfile = true,
+                WindowStyle = ProcessWindowStyle.Normal
             };
 
             var process = System.Diagnostics.Process.Start(startInfo);
@@ -171,6 +177,26 @@ namespace THJPatcher
                 return false;
             }
             return true;
+        }
+        
+        // MoveFileEx flags for scheduling file operations
+        [Flags]
+        public enum MoveFileFlags
+        {
+            MOVEFILE_REPLACE_EXISTING = 0x00000001,
+            MOVEFILE_COPY_ALLOWED = 0x00000002,
+            MOVEFILE_DELAY_UNTIL_REBOOT = 0x00000004,
+            MOVEFILE_WRITE_THROUGH = 0x00000008
+        }
+        
+        // Import the MoveFileEx function from kernel32.dll
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, MoveFileFlags dwFlags);
+        
+        // Wrapper method for MoveFileEx with a different name to avoid conflict
+        public static bool ScheduleFileOperation(string existingFile, string newFile, MoveFileFlags flags)
+        {
+            return MoveFileEx(existingFile, newFile, flags);
         }
     }
 }

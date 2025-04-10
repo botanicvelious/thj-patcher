@@ -15,11 +15,11 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.1.0.%2a</ApplicationVersion>
+    <ApplicationVersion>1.1.5.%2a</ApplicationVersion>
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
@@ -31,6 +31,18 @@
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Version>$(VERSION)</Version>
+    <FileVersion>$(VERSION)</FileVersion>
+    <AssemblyVersion>$(VERSION)</AssemblyVersion>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{YOUR-GUID-HERE}</ProjectGuid>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DefineConstants>
@@ -38,10 +50,12 @@
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>icon.ico</ApplicationIcon>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="Launcher_Window.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="patcher_changelog.md">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\rof.png">
@@ -73,18 +87,6 @@
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Costura.Fody" Version="6.0.0" />
-    <PackageVersion Include="Fody" Version="6.8.0" />
-    <PackageVersion Include="LibGit2Sharp" Version="0.29.0" />
-    <PackageVersion Include="LibGit2Sharp.NativeBinaries" Version="2.0.321" />
-    <PackageVersion Include="MaterialDesignThemes" Version="4.9.0" />
-    <PackageVersion Include="MaterialDesignColors" Version="2.1.4" />
-    <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageVersion Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.5" />
-    <PackageVersion Include="System.Data.DataSetExtensions" Version="4.5.0" />
-    <PackageVersion Include="YamlDotNet" Version="13.7.1" />
-  </ItemGroup>
-  <ItemGroup>
     <Compile Remove="SolutionInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -110,11 +112,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="Resources\rof.png" />
+    <None Remove="Resources\materialdesigntheme.defaults.xaml" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\rof.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\materialdesigntheme.defaults.xaml" />
   </ItemGroup>
   <ItemGroup>
     <None Update="app.manifest">

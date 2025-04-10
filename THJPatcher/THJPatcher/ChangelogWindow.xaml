@@ -55,11 +55,27 @@
                     x:Name="ChangelogList"
                     VirtualizingPanel.IsVirtualizing="True" 
                     VirtualizingPanel.VirtualizationMode="Recycling"
+                    VirtualizingPanel.CacheLength="2"
+                    VirtualizingPanel.CacheLengthUnit="Page"
+                    ScrollViewer.CanContentScroll="False"
+                    ScrollViewer.PanningMode="VerticalOnly"
                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                     BorderThickness="0"
                     Background="Transparent"
+                    RenderOptions.BitmapScalingMode="HighQuality"
+                    UseLayoutRounding="True"
                     Margin="0,0,0,20">
+                <ListView.Template>
+                    <ControlTemplate TargetType="ListView">
+                        <ScrollViewer Focusable="False" 
+                                    Padding="{TemplateBinding Padding}"
+                                    CanContentScroll="False"
+                                    PanningMode="VerticalOnly">
+                            <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ListView.Template>
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="0,0,0,15">
@@ -80,11 +96,11 @@
                                      TextWrapping="Wrap"
                                      Foreground="#FBE9A4"
                                      Margin="0,0,0,15"/>
-                            <Border Visibility="{Binding SeparatorVisibility}"
-                                    Height="1"
-                                    Background="#FBE9A4"
-                                    Opacity="0.6"
-                                    Margin="0,5,0,0"/>
+                            <Rectangle Height="1"
+                                     Fill="#FBE9A4"
+                                     Opacity="0.6"
+                                     Margin="0,5,0,0"
+                                     Visibility="{Binding SeparatorVisibility}"/>
                         </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>

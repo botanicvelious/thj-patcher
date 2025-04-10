@@ -14,8 +14,8 @@ The patcher is configured with the following hardcoded values:
 
 - Server Name: The Heroes Journey
 - File Name: heroesjourneyeq
-- File List URL: https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/
-- Patcher URL: https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/
+- File List URL: https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/
+- Patcher URL: https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/
 - Storage URL: https://patch.heroesjourneyemu.com/rof/
 
 ## Client Setup

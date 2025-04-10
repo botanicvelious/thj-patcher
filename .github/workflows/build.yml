@@ -8,19 +8,15 @@ on:
         required: true
         type: boolean
         default: false
-  push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
 
 env:
   VERSION: 1.1.0
   BUILD_CONFIGURATION: Release
   SERVER_NAME: "The Heroes Journey"
-  FILE_NAME: "heroesjourneyeq-test"
-  FILELIST_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
-  PATCHER_URL: "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/"
-  STORAGE_URL: "https://patch.heroesjourneyemu.com/rof/"
+  FILE_NAME: "heroesjourneyemu"
+  FILELIST_URL: "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/"
+  PATCHER_URL: "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/"
+  STORAGE_URL: "https://raw.githubusercontent.com/The-Heroes-Journey-EQEMU/eqemupatcher/master/rof/"
   PATCHER_TOKEN: ${{ secrets.PATCHER_TOKEN }}
 
 permissions:
@@ -84,7 +80,7 @@ jobs:
     - name: Build Application
       run: |
         cd "THJPatcher"
-        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}-staging"
+        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -p:Version="${{ env.VERSION }}.${{ github.run_number }}" -p:AssemblyVersion="${{ env.VERSION }}.${{ github.run_number }}" -p:FileVersion="${{ env.VERSION }}.${{ github.run_number }}"
 
     - name: Upload staging artifacts
       uses: actions/upload-artifact@v4

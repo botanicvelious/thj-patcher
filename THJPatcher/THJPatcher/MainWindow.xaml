@@ -59,7 +59,19 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- Custom TextBox Style -->
+            <!-- Patch Button Style -->
+            <Style x:Key="PatchButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
+                <Setter Property="BorderThickness" Value="2"/>
+                <Setter Property="BorderBrush" Value="#8B0000"/>
+            </Style>
+
+            <!-- Play Button Style -->
+            <Style x:Key="PlayButton" TargetType="Button" BasedOn="{StaticResource GoldButton}">
+                <Setter Property="BorderThickness" Value="2"/>
+                <Setter Property="BorderBrush" Value="#006400"/>
+            </Style>
+
+            <!-- Custom TextBox Style  -->
             <Style x:Key="CustomTextBox" TargetType="TextBox" BasedOn="{StaticResource MaterialDesignTextBox}">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderThickness" Value="0"/>
@@ -136,12 +148,46 @@
         <!-- Empty space for image -->
         <Grid Grid.Row="1"/>
 
+        <!-- Player Count -->
+        <TextBlock x:Name="txtPlayerCount"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Top"
+                 FontSize="16"
+                 FontWeight="Bold"
+                 Foreground="#FAE7A1"
+                 Margin="37,50,0,0"
+                 TextAlignment="Center"
+                 LineHeight="20"
+                 Panel.ZIndex="1000"
+                 Grid.Row="1">
+            <Run Text="Players Online:"/>
+            <LineBreak/>
+            <Run Text="0" Foreground="#F8D38D"/>
+        </TextBlock>
+
+        <!-- Exp Bonus -->
+        <TextBlock x:Name="txtExpBonus"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Top"
+                 FontSize="16"
+                 FontWeight="Bold"
+                 Foreground="#FAE7A1"
+                 Margin="560,50,0,0"
+                 TextAlignment="Center"
+                 LineHeight="20"
+                 Panel.ZIndex="1000"
+                 Grid.Row="1">
+            <Run Text="Experience:"/>
+            <LineBreak/>
+            <Run Text="0% Bonus" Foreground="#F8D38D"/>
+        </TextBlock>
+
         <!-- Sidebar Buttons -->
         <StackPanel Grid.Row="2" 
                     Orientation="Vertical" 
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Margin="85,-270,0,0">
+                    Margin="75,-270,0,0">
             
             <!-- Links Section -->
             <StackPanel Margin="0,0,0,0">
@@ -273,7 +319,7 @@
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
-                    Style="{StaticResource GoldButton}"/>
+                    Style="{StaticResource PatchButton}"/>
 
             <Button x:Name="btnPlay"
                     Content="PLAY"
@@ -281,7 +327,7 @@
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
-                    Style="{StaticResource GoldButton}"/>
+                    Style="{StaticResource PlayButton}"/>
         </StackPanel>
 
         <!-- Main Content -->
@@ -292,12 +338,13 @@
             </Grid.RowDefinitions>
 
             <!-- Version Number -->
-            <TextBlock Text="v1.1.0"
+            <TextBlock Text="{Binding Version}"
                      HorizontalAlignment="Right"
                      VerticalAlignment="Bottom"
                      FontSize="10"
                      Foreground="#FBE9A4"
-                     Margin="0,0,0,0"
+                     Margin="0,0,20,0"
+                     Panel.ZIndex="1000"
                      Grid.Row="1"/>
 
             <!-- Progress Section -->
@@ -312,12 +359,12 @@
                          FontSize="14"
                          FontWeight="Bold"
                          Foreground="#FBE9A4"
-                         Margin="0,0,0,5"
+                         Margin="-30,0,30,5"
                          Visibility="Collapsed"/>
                 <ProgressBar x:Name="progressBar" 
                            Grid.Row="1"
                            Height="4" 
-                           Margin="0,8"
+                           Margin="-30,8,30,8"
                            Style="{StaticResource MaterialDesignLinearProgressBar}"
                            Background="Transparent"
                            BorderThickness="0"
@@ -326,7 +373,7 @@
             </Grid>
 
             <!-- Log Section -->
-            <materialDesign:Card x:Name="logPanel" Grid.Row="1" Margin="0,8" Background="Transparent">
+            <materialDesign:Card x:Name="logPanel" Grid.Row="1" Margin="-20,8,0,8" Background="Transparent">
                 <Border BorderThickness="0" Background="Transparent">
                     <ScrollViewer x:Name="logScrollViewer" 
                                 VerticalScrollBarVisibility="Auto" 
@@ -343,7 +390,7 @@
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Foreground="#FBE9A4"
-                                Padding="8"
+                                Padding="-2,8,8,8"
                                 IsUndoEnabled="False"
                                 Focusable="False"
                                 VerticalScrollBarVisibility="Disabled"
@@ -435,10 +482,39 @@
                                     Click="ResetSettings_Click"
                                     Visibility="Collapsed"
                                     ToolTip="Deletes all EverQuest configuration files. They will be recreated with defaults when you next launch the game."/>
+                                    
+                            <Button x:Name="btnFileIntegrityScan"
+                                    Content="File Integrity Scan"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="FileIntegrityScan_Click"
+                                    ToolTip="Performs a complete file integrity scan to verify all game files are intact."/>
+                                    
+                            <Button x:Name="btnMemoryOptimizations"
+                                    Content="Memory Optimizations"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="MemoryOptimizations_Click"
+                                    ToolTip="Apply memory optimizations to EverQuest settings"/>
+
+                            <Button x:Name="btnPatcherChangelog"
+                                    Content="Patcher Changelog"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="PatcherChangelog_Click"
+                                    ToolTip="View changes made to the patcher application"/>
+
+                            <!-- Add more buttons here -->
                         </WrapPanel>
                     </ScrollViewer>
                 </Grid>
             </materialDesign:Card>
         </Grid>
     </Grid>
-</Window> 
+</Window>
