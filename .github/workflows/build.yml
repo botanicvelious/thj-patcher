@@ -12,11 +12,11 @@ on:
 env:
   VERSION: 1.1.0
   BUILD_CONFIGURATION: Release
-  SERVER_NAME: "The Heroes Journey"
-  FILE_NAME: "heroesjourneyemu"
-  FILELIST_URL: "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/"
-  PATCHER_URL: "https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/"
-  STORAGE_URL: "https://raw.githubusercontent.com/The-Heroes-Journey-EQEMU/eqemupatcher/master/rof/"
+  SERVER_NAME: 'The Heroes Journey'
+  FILE_NAME: 'heroesjourneyemu'
+  FILELIST_URL: 'https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/'
+  PATCHER_URL: 'https://github.com/The-Heroes-Journey-EQEMU/thj-patcher/releases/latest/download/'
+  STORAGE_URL: 'https://raw.githubusercontent.com/The-Heroes-Journey-EQEMU/eqemupatcher/master/rof/'
   PATCHER_TOKEN: ${{ secrets.PATCHER_TOKEN }}
 
 permissions:
@@ -24,162 +24,91 @@ permissions:
   packages: write
 
 jobs:
-  staging:
-    runs-on: windows-latest
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-
-    - name: Install dependencies
-      run: npm install
-
-    - name: Generate manifest
-      run: npm start
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-
-    - name: Restore dependencies
-      run: dotnet restore "THJPatcher/THJPatcher.sln"
-
-    - name: Replace Patcher Token
-      shell: pwsh
-      run: |
-        Write-Host "Replacing token in Constants.cs..."
-        $constantsPath = "THJPatcher/THJPatcher/Constants.cs"
-        $content = Get-Content $constantsPath -Raw
-        
-        # Debug check (will mask the actual token)
-        $tokenLength = "${{ secrets.PATCHER_TOKEN }}".Length
-        Write-Host "Token length: $tokenLength"
-        
-        # Use double quotes to ensure proper variable expansion
-        $content = $content.Replace("__PATCHER_TOKEN__", "${{ secrets.PATCHER_TOKEN }}")
-        
-        # Save the file
-        Set-Content $constantsPath $content -NoNewline
-        
-        # Verify replacement (safely)
-        $newContent = Get-Content $constantsPath -Raw
-        if ($newContent.Contains("__PATCHER_TOKEN__")) {
-            Write-Host "::error::Token replacement failed!"
-            exit 1
-        } else {
-            Write-Host "Token replacement successful"
-        }
-
-    - name: Build Application
-      run: |
-        cd "THJPatcher"
-        dotnet build "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -p:Version="${{ env.VERSION }}.${{ github.run_number }}" -p:AssemblyVersion="${{ env.VERSION }}.${{ github.run_number }}" -p:FileVersion="${{ env.VERSION }}.${{ github.run_number }}"
-
-    - name: Upload staging artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: staging-build
-        path: THJPatcher/THJPatcher/bin/Release/net8.0-windows/
-
   production:
-    needs: staging
     runs-on: windows-latest
     if: github.ref == 'refs/heads/master'
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Download staging artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: staging-build
-        path: THJPatcher/THJPatcher/bin/Release/net8.0-windows/
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
+      - name: Replace Patcher Token
+        shell: pwsh
+        run: |
+          Write-Host "Replacing token in Constants.cs (Production)..."
+          $constantsPath = "THJPatcher/THJPatcher/Constants.cs"
+          $content = Get-Content $constantsPath -Raw
 
-    - name: Replace Patcher Token
-      shell: pwsh
-      run: |
-        Write-Host "Replacing token in Constants.cs (Production)..."
-        $constantsPath = "THJPatcher/THJPatcher/Constants.cs"
-        $content = Get-Content $constantsPath -Raw
-        
-        # Debug check (will mask the actual token)
-        $tokenLength = "${{ secrets.PATCHER_TOKEN }}".Length
-        Write-Host "Token length: $tokenLength"
-        
-        # Use double quotes to ensure proper variable expansion
-        $content = $content.Replace("__PATCHER_TOKEN__", "${{ secrets.PATCHER_TOKEN }}")
-        
-        # Save the file
-        Set-Content $constantsPath $content -NoNewline
-        
-        # Verify replacement (safely)
-        $newContent = Get-Content $constantsPath -Raw
-        if ($newContent.Contains("__PATCHER_TOKEN__")) {
-            Write-Host "::error::Token replacement failed!"
-            exit 1
-        } else {
-            Write-Host "Token replacement successful"
-        }
+          # Debug check (will mask the actual token)
+          $tokenLength = "${{ secrets.PATCHER_TOKEN }}".Length
+          Write-Host "Token length: $tokenLength"
 
-    - name: Build EXE (Optional)
-      if: ${{ github.event.inputs.build_exe == 'true' }}
-      run: |
-        cd "THJPatcher"
-        dotnet publish "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}"
+          # Use double quotes to ensure proper variable expansion
+          $content = $content.Replace("__PATCHER_TOKEN__", "${{ secrets.PATCHER_TOKEN }}")
 
-    - name: Generate File List
-      if: ${{ github.event.inputs.build_exe == 'true' }}
-      run: |
-        cd "rof"
-        # Generate filelist.yml using PowerShell
-        $files = Get-ChildItem -Recurse -File
-        $version = Get-Date -Format "yyyyMMddHHmmss"
-        $content = "version: $version`ndownloadprefix: $env:STORAGE_URL`ndownloads:`n"
-        
-        foreach ($file in $files) {
-            $relativePath = $file.FullName.Replace($PWD.Path + "\", "").Replace("\", "/")
-            $hash = (Get-FileHash -Path $file.FullName -Algorithm MD5).Hash
-            $size = (Get-Item $file.FullName).Length
-            $content += "  - name: $relativePath`n    md5: $hash`n    size: $size`n"
-        }
-        
-        Set-Content -Path "filelist_rof.yml" -Value $content -Encoding UTF8
-        
-        # Generate hash file for the patcher
-        $patcherPath = "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
-        $patcherHash = (Get-FileHash -Path $patcherPath -Algorithm MD5).Hash
-        Set-Content -Path "$env:FILE_NAME-hash.txt" -Value $patcherHash -Encoding UTF8
-        
-        # Rename the patcher executable
-        Move-Item -Path $patcherPath -Destination "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/$env:FILE_NAME.exe" -Force
+          # Save the file
+          Set-Content $constantsPath $content -NoNewline
 
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      if: ${{ github.event.inputs.build_exe == 'true' }}
-      with:
-        tag_name: ${{ env.VERSION }}.${{ github.run_number }}
-        name: Release ${{ env.VERSION }}.${{ github.run_number }}
-        draft: false
-        prerelease: false
-        files: |
-          THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe
-          rof/filelist_rof.yml
-          rof/${{env.FILE_NAME}}-hash.txt
-          manifest.json
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Verify replacement (safely)
+          $newContent = Get-Content $constantsPath -Raw
+          if ($newContent.Contains("__PATCHER_TOKEN__")) {
+              Write-Host "::error::Token replacement failed!"
+              exit 1
+          } else {
+              Write-Host "Token replacement successful"
+          }
+
+      - name: Build EXE (Optional)
+        if: ${{ github.event.inputs.build_exe == 'true' }}
+        run: |
+          cd "THJPatcher"
+          dotnet publish "THJPatcher.sln" -c ${{env.BUILD_CONFIGURATION}} -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:VERSION="${{ env.VERSION }}.${{ github.run_number }}" /p:FILELIST_URL=${{env.FILELIST_URL}} /p:SERVER_NAME="${{env.SERVER_NAME}}" /p:FILE_NAME="${{env.FILE_NAME}}"
+
+      - name: Generate File List
+        if: ${{ github.event.inputs.build_exe == 'true' }}
+        run: |
+          cd "rof"
+          # Generate filelist.yml using PowerShell
+          $files = Get-ChildItem -Recurse -File
+          $version = Get-Date -Format "yyyyMMddHHmmss"
+          $content = "version: $version`ndownloadprefix: $env:STORAGE_URL`ndownloads:`n"
+
+          foreach ($file in $files) {
+              $relativePath = $file.FullName.Replace($PWD.Path + "\", "").Replace("\", "/")
+              $hash = (Get-FileHash -Path $file.FullName -Algorithm MD5).Hash
+              $size = (Get-Item $file.FullName).Length
+              $content += "  - name: $relativePath`n    md5: $hash`n    size: $size`n"
+          }
+
+          Set-Content -Path "filelist_rof.yml" -Value $content -Encoding UTF8
+
+          # Generate hash file for the patcher
+          $patcherPath = "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/THJPatcher.exe"
+          $patcherHash = (Get-FileHash -Path $patcherPath -Algorithm MD5).Hash
+          Set-Content -Path "$env:FILE_NAME-hash.txt" -Value $patcherHash -Encoding UTF8
+
+          # Rename the patcher executable
+          Move-Item -Path $patcherPath -Destination "../THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/$env:FILE_NAME.exe" -Force
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        if: ${{ github.event.inputs.build_exe == 'true' }}
+        with:
+          tag_name: ${{ env.VERSION }}.${{ github.run_number }}
+          name: Release ${{ env.VERSION }}.${{ github.run_number }}
+          draft: false
+          prerelease: false
+          files: |
+            THJPatcher/THJPatcher/bin/Release/net8.0-windows/win-x64/publish/${{env.FILE_NAME}}.exe
+            rof/filelist_rof.yml
+            rof/${{env.FILE_NAME}}-hash.txt
+            manifest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
