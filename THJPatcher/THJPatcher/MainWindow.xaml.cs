@@ -2576,7 +2576,9 @@ namespace THJPatcher
                                             {
                                                 if (_latestChangelogWindow == null || !_latestChangelogWindow.IsVisible)
                                                 {
-                                                    _latestChangelogWindow = new LatestChangelogWindow();
+                                                    // Format the changelog content to pass to the window
+                                                    FormatAllChangelogs();
+                                                    _latestChangelogWindow = new LatestChangelogWindow(cachedChangelogContent);
                                                     _latestChangelogWindow.Owner = this;
                                                     _latestChangelogWindow.Show();
                                                 }
@@ -2763,7 +2765,7 @@ namespace THJPatcher
                 string localChangelogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "changelog.yml");
                 if (File.Exists(localChangelogPath))
                 {
-                    var localChangelogData = File.ReadAllText(localChangelogPath);
+                    var localChangelogData = await File.ReadAllTextAsync(localChangelogPath);
                     if (isDebugMode)
                     {
                         StatusLibrary.Log("[DEBUG] Successfully loaded local changelog.");
