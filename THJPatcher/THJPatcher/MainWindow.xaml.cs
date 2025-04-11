@@ -693,37 +693,62 @@ namespace THJPatcher
                 string url = $"{patcherUrl}{fileName}-hash.txt";
                 try
                 {
-                    var data = await UtilityLibrary.Download(cts, url);
-                    string response = System.Text.Encoding.Default.GetString(data).Trim().ToUpperInvariant();
-
-                    if (!string.IsNullOrEmpty(response))
+                    using (var client = new HttpClient())
                     {
-                        myHash = UtilityLibrary.GetMD5(System.Windows.Forms.Application.ExecutablePath).ToUpperInvariant();
-                        if (isDebugMode)
+                        // Set a short timeout to avoid long hangs
+                        client.Timeout = TimeSpan.FromSeconds(5);
+
+                        // Send the request with timeout
+                        var task = client.GetStringAsync(url);
+
+                        // Wait max 5 seconds for the response
+                        bool completed = Task.WaitAll(new Task[] { task }, 5000);
+
+                        if (completed)
                         {
-                            StatusLibrary.Log($"[DEBUG] Remote hash: {response}");
-                            StatusLibrary.Log($"[DEBUG] Local hash:  {myHash}");
-                        }
-                        if (response != myHash)
-                        {
-                            isNeedingSelfUpdate = true;
-                            Dispatcher.Invoke(() =>
+                            string response = task.Result.Trim().ToUpperInvariant();
+
+                            if (!string.IsNullOrEmpty(response))
                             {
-                                StatusLibrary.Log("Patcher update available! Click PATCH to begin.");
-                                btnPatch.Visibility = Visibility.Visible;
-                                btnPlay.Visibility = Visibility.Collapsed;
-                                btnPatch.IsEnabled = true;
-                                btnPatch.Content = "PATCH";
-                            });
-                            isLoading = false;
-                            // Exit early if patcher needs updating - don't continue with the rest of initialization
-                            return;
+                                myHash = UtilityLibrary.GetMD5(System.Windows.Forms.Application.ExecutablePath).ToUpperInvariant();
+                                if (isDebugMode)
+                                {
+                                    StatusLibrary.Log($"[DEBUG] Remote hash: {response}");
+                                    StatusLibrary.Log($"[DEBUG] Local hash:  {myHash}");
+                                }
+                                if (response != myHash)
+                                {
+                                    isNeedingSelfUpdate = true;
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        StatusLibrary.Log("Patcher update available! Click PATCH to begin.");
+                                        btnPatch.Visibility = Visibility.Visible;
+                                        btnPlay.Visibility = Visibility.Collapsed;
+                                        btnPatch.IsEnabled = true;
+                                        btnPatch.Content = "PATCH";
+                                    });
+                                    isLoading = false;
+                                    // Exit early if patcher needs updating - don't continue with the rest of initialization
+                                    return;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Timed out - abort the request
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log("[DEBUG] Patcher version check timed out");
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    StatusLibrary.Log($"[Error] Failed to check patcher version: {ex.Message}");
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Failed to check patcher version: {ex.Message}");
+                    }
                 }
             }
             else
