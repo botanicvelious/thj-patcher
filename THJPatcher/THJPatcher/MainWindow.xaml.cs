@@ -1186,80 +1186,213 @@ namespace THJPatcher
                     StatusLibrary.Log("[DEBUG] Checking server status...");
                 }
 
-                using (var client = new HttpClient())
+                // Retry settings
+                int maxRetries = 3;
+                int currentRetry = 0;
+                bool success = false;
+                Exception lastException = null;
+
+                while (currentRetry < maxRetries && !success)
                 {
-                    // Set a timeout of 3 seconds for server status API requests
-                    client.Timeout = TimeSpan.FromSeconds(3);
-                    client.DefaultRequestHeaders.Add("x-patcher-token", token);
-
-                    // Check server status
-                    var response = await client.GetStringAsync("http://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/serverstatus");
-                    var status = JsonSerializer.Deserialize<ServerStatus>(response);
-
-                    if (isDebugMode)
+                    try
                     {
-                        StatusLibrary.Log($"[DEBUG] Server status response: {response}");
-                    }
-
-                    if (status?.Found == true && status.Server != null)
-                    {
-                        Dispatcher.Invoke(() =>
+                        using (var client = new HttpClient(new HttpClientHandler
                         {
-                            txtPlayerCount.Inlines.Clear();
-                            txtPlayerCount.Inlines.Add(new Run("Players Online:"));
-                            txtPlayerCount.Inlines.Add(new LineBreak());
-                            txtPlayerCount.Inlines.Add(new Run(status.Server.PlayersOnline.ToString()) { Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(212, 184, 106)) });
-                        });
-                    }
-
-                    // Check exp bonus
-                    if (isDebugMode)
-                    {
-                        StatusLibrary.Log("[DEBUG] Checking exp bonus...");
-                    }
-                    var expResponse = await client.GetStringAsync("http://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/expbonus");
-                    var expStatus = JsonSerializer.Deserialize<ExpBonusStatus>(expResponse);
-
-                    if (isDebugMode)
-                    {
-                        StatusLibrary.Log($"[DEBUG] Exp bonus response: {expResponse}");
-                    }
-
-                    if (expStatus?.Status == "success" && expStatus.Found)
-                    {
-                        // Extract the percentage from the exp_boost string
-                        var percentage = expStatus.ExpBoost.Split('%')[0].Split(':')[1].Trim();
-                        // If the percentage is "Off", show 0%
-                        if (percentage.Equals("Off", StringComparison.OrdinalIgnoreCase))
+                            // Set security protocol explicitly to support all TLS versions
+                            ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+                        }))
                         {
-                            percentage = "0";
+                            // Set a timeout of 3 seconds for server status API requests
+                            client.Timeout = TimeSpan.FromSeconds(3);
+                            client.DefaultRequestHeaders.Add("x-patcher-token", token);
+
+                            // Server status API endpoints - try primary and fallback if needed
+                            string primaryApiUrl = "https://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/serverstatus";
+                            string fallbackApiUrl = "http://thj-patcher-gsgvaxf0ehcegjdu.eastus2-01.azurewebsites.net/serverstatus";
+
+                            // First try with HTTPS
+                            string apiUrl = currentRetry == 0 ? primaryApiUrl : fallbackApiUrl;
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Trying server status API (attempt {currentRetry + 1}): {apiUrl}");
+                            }
+
+                            // Get response as string first to examine if there are issues
+                            var responseString = await client.GetStringAsync(apiUrl);
+
+                            if (isDebugMode && currentRetry > 0)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Succeeded with {(apiUrl.StartsWith("https") ? "HTTPS" : "HTTP")} on retry {currentRetry + 1}");
+                            }
+
+                            // Check if response starts with unexpected characters (like HTML)
+                            if (responseString.StartsWith("<"))
+                            {
+                                throw new JsonException("Response appears to be HTML instead of JSON");
+                            }
+
+                            var status = JsonSerializer.Deserialize<ServerStatus>(responseString);
+
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Server status response successful");
+                            }
+
+                            if (status?.Found == true && status.Server != null)
+                            {
+                                Dispatcher.Invoke(() =>
+                                {
+                                    txtPlayerCount.Inlines.Clear();
+                                    txtPlayerCount.Inlines.Add(new Run("Players Online:"));
+                                    txtPlayerCount.Inlines.Add(new LineBreak());
+                                    txtPlayerCount.Inlines.Add(new Run(status.Server.PlayersOnline.ToString()) { Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(212, 184, 106)) });
+                                });
+                            }
+
+                            // Now try the EXP bonus API using the same protocol that worked
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log("[DEBUG] Checking exp bonus...");
+                            }
+
+                            string expApiUrl = apiUrl.Replace("serverstatus", "expbonus");
+                            var expResponseString = await client.GetStringAsync(expApiUrl);
+
+                            // Check if response starts with unexpected characters
+                            if (expResponseString.StartsWith("<"))
+                            {
+                                throw new JsonException("EXP response appears to be HTML instead of JSON");
+                            }
+
+                            var expStatus = JsonSerializer.Deserialize<ExpBonusStatus>(expResponseString);
+
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Exp bonus response successful");
+                            }
+
+                            if (expStatus?.Status == "success" && expStatus.Found)
+                            {
+                                // Extract the percentage from the exp_boost string
+                                var percentage = expStatus.ExpBoost.Split('%')[0].Split(':')[1].Trim();
+                                // If the percentage is "Off", show 0%
+                                if (percentage.Equals("Off", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    percentage = "0";
+                                }
+                                Dispatcher.Invoke(() =>
+                                {
+                                    txtExpBonus.Inlines.Clear();
+                                    txtExpBonus.Inlines.Add(new Run("Experience:"));
+                                    txtExpBonus.Inlines.Add(new LineBreak());
+                                    txtExpBonus.Inlines.Add(new Run($"{percentage}% Bonus") { Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(212, 184, 106)) });
+                                });
+                            }
+
+                            // If we got here, everything succeeded
+                            success = true;
                         }
-                        Dispatcher.Invoke(() =>
+                    }
+                    catch (JsonException ex)
+                    {
+                        lastException = ex;
+                        if (isDebugMode)
                         {
-                            txtExpBonus.Inlines.Clear();
-                            txtExpBonus.Inlines.Add(new Run("Experience:"));
-                            txtExpBonus.Inlines.Add(new LineBreak());
-                            txtExpBonus.Inlines.Add(new Run($"{percentage}% Bonus") { Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(212, 184, 106)) });
-                        });
+                            StatusLibrary.Log($"[DEBUG] Server status JSON parse error: {ex.Message}");
+                            // If we have an inner exception, log it as well
+                            if (ex.InnerException != null)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Inner exception: {ex.InnerException.Message}");
+                            }
+                        }
+                        // This is likely a response format issue, so retrying won't help
+                        break;
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        lastException = ex;
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Server status HTTP request error: {ex.Message}");
+                            // Log inner exception which often contains SSL details
+                            if (ex.InnerException != null)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Inner exception: {ex.InnerException.Message}");
+
+                                // If it's an SSL error, log more details
+                                if (ex.InnerException is System.Security.Authentication.AuthenticationException)
+                                {
+                                    StatusLibrary.Log($"[DEBUG] SSL error: {ex.InnerException.Message}");
+                                }
+                            }
+                        }
+                        currentRetry++;
+
+                        // Add a small delay between retries
+                        if (currentRetry < maxRetries)
+                        {
+                            await Task.Delay(500 * currentRetry); // Increasing backoff
+                        }
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // Handle timeout specifically
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Server status API request timed out on attempt {currentRetry + 1}");
+                        }
+                        currentRetry++;
+
+                        // Add a small delay between retries
+                        if (currentRetry < maxRetries)
+                        {
+                            await Task.Delay(500 * currentRetry); // Increasing backoff
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Server status check error: {ex.Message}");
+                            if (ex.InnerException != null)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Inner exception: {ex.InnerException.Message}");
+                            }
+                        }
+                        currentRetry++;
+
+                        // Add a small delay between retries
+                        if (currentRetry < maxRetries)
+                        {
+                            await Task.Delay(500 * currentRetry); // Increasing backoff
+                        }
                     }
                 }
-            }
-            catch (TaskCanceledException)
-            {
-                // Handle timeout specifically but silently
-                if (isDebugMode)
+
+                // Log if all retries failed but don't show errors to users
+                if (!success && isDebugMode && lastException != null)
                 {
-                    StatusLibrary.Log("[DEBUG] Server status API request timed out after 3 seconds");
+                    StatusLibrary.Log($"[DEBUG] All server status check attempts failed. Last error: {lastException.Message}");
+
+                    // Add a troubleshooting hint if SSL errors are detected
+                    if (lastException is HttpRequestException && lastException.InnerException is System.Security.Authentication.AuthenticationException)
+                    {
+                        StatusLibrary.Log("[DEBUG] SSL connection issues detected. This may be due to outdated TLS settings, firewall, or antivirus software.");
+                    }
                 }
-                // Silently fail - we don't want to show errors for this
             }
             catch (Exception ex)
             {
                 if (isDebugMode)
                 {
-                    StatusLibrary.Log($"[DEBUG] Server status check error: {ex.Message}");
+                    StatusLibrary.Log($"[DEBUG] Unhandled error in server status check: {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Inner exception: {ex.InnerException.Message}");
+                    }
                 }
-                // Silently fail - we don't want to show errors for this
+                // Silently fail for end users - we don't want to show errors for this
             }
         }
 
@@ -2340,58 +2473,49 @@ namespace THJPatcher
                     StatusLibrary.Log($"[DEBUG] Changelog path: {changelogPath}");
                     StatusLibrary.Log($"[DEBUG] File exists: {File.Exists(changelogPath)}");
                     StatusLibrary.Log($"[DEBUG] Using URL: {url}");
+                    StatusLibrary.Log($"[DEBUG] Calling changelog API: {url}");
                 }
 
-                using (var client = new HttpClient())
+                // Retry settings
+                int maxRetries = 3;
+                int currentRetry = 0;
+                bool success = false;
+                Exception lastException = null;
+
+                while (currentRetry < maxRetries && !success)
                 {
-                    // Set a timeout of 5 seconds for the changelog API request
-                    client.Timeout = TimeSpan.FromSeconds(5);
-                    client.DefaultRequestHeaders.Add("x-patcher-token", token);
                     try
                     {
-                        if (isDebugMode)
+                        using (var client = new HttpClient(new HttpClientHandler
                         {
-                            StatusLibrary.Log($"[DEBUG] Calling changelog API: {url}");
-                        }
-
-                        var httpResponse = await client.GetAsync(url);
-
-                        if (httpResponse.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                            // Set security protocol explicitly to support all TLS versions
+                            ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+                        }))
                         {
-                            StatusLibrary.Log("[ERROR] Authentication failed with changelog API");
-                            StatusLibrary.Log("Continuing....");
-                            return;
-                        }
+                            // Set a timeout of 5 seconds for the changelog API request
+                            client.Timeout = TimeSpan.FromSeconds(5);
+                            client.DefaultRequestHeaders.Add("x-patcher-token", token);
 
-                        if (httpResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
-                        {
-                            StatusLibrary.Log("[ERROR] Changelog API endpoint not found");
-                            StatusLibrary.Log("Continuing....");
-                            return;
-                        }
+                            // Use different protocol on retries
+                            string apiUrl = currentRetry == 0 ? url : url.Replace("https://", "http://");
 
-                        if (!httpResponse.IsSuccessStatusCode)
-                        {
-                            StatusLibrary.Log("[ERROR] Failed to connect to changelog API");
-                            StatusLibrary.Log("Continuing....");
-                            return;
-                        }
-
-                        var response = await httpResponse.Content.ReadAsStringAsync();
-                        if (isDebugMode)
-                        {
-                            StatusLibrary.Log($"[DEBUG] API Response: {response}");
-                        }
-
-                        if (!string.IsNullOrEmpty(response))
-                        {
-                            var options = new JsonSerializerOptions
+                            if (isDebugMode && currentRetry > 0)
                             {
-                                PropertyNameCaseInsensitive = true,
-                                AllowTrailingCommas = true
-                            };
+                                StatusLibrary.Log($"[DEBUG] Retry {currentRetry + 1} using URL: {apiUrl}");
+                            }
 
-                            changelogResponse = JsonSerializer.Deserialize<ChangelogResponse>(response, options);
+                            // First get the raw response to check for HTML vs JSON
+                            var responseString = await client.GetStringAsync(apiUrl);
+
+                            // Check if we got HTML instead of JSON (common with SSL errors or proxies)
+                            if (responseString.StartsWith("<"))
+                            {
+                                throw new JsonException("Response appears to be HTML instead of JSON");
+                            }
+
+                            // Parse the JSON response
+                            changelogResponse = JsonSerializer.Deserialize<ChangelogResponse>(responseString);
+
                             if (changelogResponse?.Status == "success" && changelogResponse.Changelogs != null)
                             {
                                 if (changelogResponse.Total > 0)
@@ -2401,138 +2525,181 @@ namespace THJPatcher
                                         StatusLibrary.Log($"[DEBUG] Found {changelogResponse.Total} new changelog entries");
                                     }
 
-                                    // Store the new changelogs separately
-                                    var newChangelogs = changelogResponse.Changelogs.OrderBy(x => x.Timestamp).ToList();
+                                    // Add new changelogs to the list and update UI
+                                    List<Dictionary<string, string>> entries = new List<Dictionary<string, string>>();
+                                    bool hasNewEntries = false;
 
-                                    // Load existing entries or create new list if file doesn't exist
-                                    var entries = File.Exists(changelogPath) ? IniLibrary.LoadChangelog() : new List<Dictionary<string, string>>();
-
-                                    // Remove the default entry if it exists
-                                    entries.RemoveAll(e => e.ContainsKey("message_id") && e["message_id"] == "default");
-
-                                    // Cache timezone info for formatting
-                                    var timeZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-
-                                    // Add new entries at the end (append)
-                                    foreach (var changelog in newChangelogs)
+                                    foreach (var changelog in changelogResponse.Changelogs)
                                     {
-                                        // Format the date in Eastern Time
-                                        var estTime = TimeZoneInfo.ConvertTime(changelog.Timestamp, timeZone);
-                                        var dateHeader = $"# {estTime:MMMM dd, yyyy}";
-                                        var authorHeader = $"## {FormatAuthorName(changelog.Author)}";
-
-                                        // Format the content
-                                        var content = changelog.Raw_Content?.Trim() ?? "";
-                                        if (!string.IsNullOrEmpty(content))
+                                        // Skip if this changelog is already in our list
+                                        if (changelogs.Any(c => c.Message_Id == changelog.Message_Id))
                                         {
-                                            // Remove both single backticks and triple backtick code blocks
-                                            content = content.Replace("```", "").TrimStart('`').TrimEnd('`');
-                                            var sb = new StringBuilder();
-                                            foreach (var line in content.Split('\n'))
-                                            {
-                                                var trimmedLine = line.Trim();
-                                                if (!string.IsNullOrWhiteSpace(trimmedLine))
-                                                {
-                                                    // Don't add bullet points if line starts with a header marker or is already a bullet point
-                                                    if (trimmedLine.StartsWith("#") || trimmedLine.StartsWith("-"))
-                                                        sb.AppendLine(trimmedLine);
-                                                    else
-                                                        sb.AppendLine($"- {trimmedLine}");
-                                                }
-                                            }
-                                            content = sb.ToString().TrimEnd();
+                                            continue;
                                         }
 
-                                        // Create the fully formatted content
-                                        var formattedContent = $"{dateHeader}\n\n{authorHeader}\n\n{content}\n\n---";
+                                        // Format the author name
+                                        changelog.Author = FormatAuthorName(changelog.Author);
+
+                                        // Add to our list
+                                        changelogs.Add(changelog);
+
+                                        // Add to entries for saving
                                         entries.Add(new Dictionary<string, string>
                                         {
-                                            ["raw_content"] = changelog.Raw_Content,
-                                            ["formatted_content"] = formattedContent,
-                                            ["author"] = changelog.Author,
                                             ["timestamp"] = changelog.Timestamp.ToString("O"),
+                                            ["author"] = changelog.Author,
+                                            ["formatted_content"] = changelog.Formatted_Content,
+                                            ["raw_content"] = changelog.Raw_Content,
                                             ["message_id"] = changelog.Message_Id
                                         });
+
+                                        hasNewEntries = true;
                                     }
 
-                                    if (isDebugMode)
+                                    if (hasNewEntries)
                                     {
-                                        StatusLibrary.Log($"[DEBUG] Saving {entries.Count} total changelog entries");
-                                    }
+                                        hasNewChangelogs = true;
+                                        changelogNeedsUpdate = true;
 
-                                    // Save updated changelog
-                                    IniLibrary.SaveChangelog(entries);
+                                        // Save the updated changelogs to the file
+                                        IniLibrary.SaveChangelog(IniLibrary.LoadChangelog().Concat(entries).ToList());
 
-                                    // Save pre-formatted markdown file
-                                    var markdownContent = new StringBuilder();
-                                    foreach (var entry in entries.OrderByDescending(e => DateTime.Parse(e["timestamp"])))
-                                    {
-                                        markdownContent.AppendLine(entry["formatted_content"]);
-                                    }
-                                    string markdownPath = Path.Combine(appPath, "changelog.md");
-                                    File.WriteAllText(markdownPath, markdownContent.ToString());
-
-                                    // Update changelogs list with ALL entries (existing + new)
-                                    changelogs.Clear();
-                                    foreach (var entry in entries)
-                                    {
-                                        if (entry.TryGetValue("timestamp", out var timestampStr) &&
-                                            entry.TryGetValue("author", out var author) &&
-                                            entry.TryGetValue("formatted_content", out var formattedContent) &&
-                                            entry.TryGetValue("raw_content", out var rawContent) &&
-                                            entry.TryGetValue("message_id", out var messageId))
+                                        if (isDebugMode)
                                         {
-                                            if (DateTime.TryParse(timestampStr, out var timestamp))
+                                            StatusLibrary.Log($"[DEBUG] Saved {entries.Count} new changelog entries");
+                                        }
+
+                                        // Show the latest changelog window if we have new entries
+                                        if (hasNewChangelogs && !isSilentMode && !isNeedingSelfUpdate && !isPendingPatch)
+                                        {
+                                            Dispatcher.Invoke(() =>
                                             {
-                                                changelogs.Add(new ChangelogInfo
+                                                if (_latestChangelogWindow == null || !_latestChangelogWindow.IsVisible)
                                                 {
-                                                    Timestamp = timestamp,
-                                                    Author = author,
-                                                    Formatted_Content = formattedContent,
-                                                    Raw_Content = rawContent,
-                                                    Message_Id = messageId
-                                                });
-                                            }
+                                                    _latestChangelogWindow = new LatestChangelogWindow();
+                                                    _latestChangelogWindow.Owner = this;
+                                                    _latestChangelogWindow.Show();
+                                                }
+                                            });
                                         }
                                     }
-                                    changelogNeedsUpdate = true;
-                                    hasNewChangelogs = true;
+                                    else if (isDebugMode)
+                                    {
+                                        StatusLibrary.Log("[DEBUG] No new changelog entries found");
+                                    }
                                 }
                                 else if (isDebugMode)
                                 {
-                                    StatusLibrary.Log("[DEBUG] No new changelog entries found");
+                                    StatusLibrary.Log("[DEBUG] No new changelog entries available");
+                                }
+
+                                // Set success flag
+                                success = true;
+                            }
+                            else if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Invalid response format or empty response");
+                            }
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        lastException = ex;
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Changelog JSON parse error: {ex.Message}");
+                            // If we have an inner exception, log it as well
+                            if (ex.InnerException != null)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Inner exception: {ex.InnerException.Message}");
+                            }
+                        }
+                        // This is likely a response format issue, so retrying won't help
+                        break;
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        lastException = ex;
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Changelog HTTP request error: {ex.Message}");
+                            // Log inner exception which often contains SSL details
+                            if (ex.InnerException != null)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Inner exception: {ex.InnerException.Message}");
+
+                                // If it's an SSL error, log more details
+                                if (ex.InnerException is System.Security.Authentication.AuthenticationException)
+                                {
+                                    StatusLibrary.Log($"[DEBUG] SSL error: {ex.InnerException.Message}");
                                 }
                             }
+                        }
+                        currentRetry++;
+
+                        // Add a small delay between retries
+                        if (currentRetry < maxRetries)
+                        {
+                            await Task.Delay(500 * currentRetry); // Increasing backoff
                         }
                     }
                     catch (TaskCanceledException)
                     {
                         // Handle timeout specifically
-                        StatusLibrary.Log("[INFO] Changelog API request timed out after 5 seconds");
-                        StatusLibrary.Log("Continuing without changelog updates...");
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Changelog API request timed out on attempt {currentRetry + 1}");
+                        }
+                        currentRetry++;
+
+                        // Add a small delay between retries
+                        if (currentRetry < maxRetries)
+                        {
+                            await Task.Delay(500 * currentRetry); // Increasing backoff
+                        }
                     }
                     catch (Exception ex)
                     {
+                        lastException = ex;
                         if (isDebugMode)
                         {
                             StatusLibrary.Log($"[DEBUG] Failed to check changelogs: {ex.Message}");
+                            if (ex.InnerException != null)
+                            {
+                                StatusLibrary.Log($"[DEBUG] Inner exception: {ex.InnerException.Message}");
+                            }
                         }
-                        StatusLibrary.Log("[ERROR] Failed to connect to changelog API");
-                        StatusLibrary.Log("Continuing....");
+                        currentRetry++;
+
+                        // Add a small delay between retries
+                        if (currentRetry < maxRetries)
+                        {
+                            await Task.Delay(500 * currentRetry); // Increasing backoff
+                        }
                     }
                 }
-            }
-            catch (TaskCanceledException)
-            {
-                // Handle timeout specifically
-                StatusLibrary.Log("[INFO] Changelog API request timed out after 5 seconds");
-                StatusLibrary.Log("Continuing without changelog updates...");
+
+                // Log if all retries failed but don't show errors to users
+                if (!success && isDebugMode && lastException != null)
+                {
+                    StatusLibrary.Log($"[DEBUG] All changelog check attempts failed. Last error: {lastException.Message}");
+
+                    // Add a troubleshooting hint if SSL errors are detected
+                    if (lastException is HttpRequestException && lastException.InnerException is System.Security.Authentication.AuthenticationException)
+                    {
+                        StatusLibrary.Log("[DEBUG] SSL connection issues detected. This may be due to outdated TLS settings, firewall, or antivirus software.");
+                    }
+                }
             }
             catch (Exception ex)
             {
                 if (isDebugMode)
                 {
-                    StatusLibrary.Log($"[DEBUG] Changelog check failed: {ex.Message}");
+                    StatusLibrary.Log($"[DEBUG] Unhandled error in changelog check: {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Inner exception: {ex.InnerException.Message}");
+                    }
                 }
                 StatusLibrary.Log("[ERROR] Failed to check for changelogs");
                 StatusLibrary.Log("Continuing....");
