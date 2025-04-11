@@ -2539,6 +2539,111 @@ namespace THJPatcher
             }
         }
 
+        private async Task CheckChangelogWithFallbackAsync()
+        {
+            try
+            {
+                // Attempt to fetch changelog from API
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log("[DEBUG] Attempting to fetch changelog from API...");
+                }
+
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(5);
+                    client.DefaultRequestHeaders.Add("x-patcher-token", Constants.PATCHER_TOKEN);
+
+                    var response = await client.GetAsync(changelogEndpoint);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var changelogData = await response.Content.ReadAsStringAsync();
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log("[DEBUG] Successfully fetched changelog from API.");
+                        }
+
+                        // Process the changelog data
+                        ProcessChangelogData(changelogData);
+                        return;
+                    }
+                    else
+                    {
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] API returned non-success status code: {response.StatusCode}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Error fetching changelog from API: {ex.Message}");
+                }
+            }
+
+            // Fallback to local changelog if API fails
+            try
+            {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log("[DEBUG] Falling back to local changelog...");
+                }
+
+                string localChangelogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "changelog.yml");
+                if (File.Exists(localChangelogPath))
+                {
+                    var localChangelogData = File.ReadAllText(localChangelogPath);
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Successfully loaded local changelog.");
+                    }
+
+                    // Process the local changelog data
+                    ProcessChangelogData(localChangelogData);
+                }
+                else
+                {
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Local changelog file not found.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Error loading local changelog: {ex.Message}");
+                }
+            }
+        }
+
+        private void ProcessChangelogData(string changelogData)
+        {
+            try
+            {
+                // Parse and update changelog content
+                changelogContent = changelogData;
+                changelogNeedsUpdate = true;
+
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log("[DEBUG] Changelog data processed successfully.");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Error processing changelog data: {ex.Message}");
+                }
+            }
+        }
+
         private void LoadLoadingMessages()
         {
             // Create messages directly
