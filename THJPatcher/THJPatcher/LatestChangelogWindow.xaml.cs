@@ -1,161 +1,184 @@
 using System;
-using System.Collections.Generic;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
-using System.Windows.Media;
-using System.IO;
-using System.Linq;
 
 namespace THJPatcher
 {
+    /// <summary>
+    /// Interaction logic for LatestChangelogWindow.xaml
+    /// </summary>
     public partial class LatestChangelogWindow : Window
     {
-        private static bool _hasShownChangelog = false;
-        public bool IsAcknowledged { get; private set; }
+        public bool IsAcknowledged { get; private set; } = false;
 
-        public class ChangelogItemViewModel
+        // Constructor that accepts raw markdown content
+        public LatestChangelogWindow(string rawMarkdown)
         {
-            public string Date { get; set; }
-            public string Author { get; set; }
-            public string Content { get; set; }
-            public Visibility DateVisibility { get; set; }
-            public Visibility AuthorVisibility { get; set; }
-            public Visibility ContentVisibility { get; set; }
-            public Visibility SeparatorVisibility { get; set; }
-        }
-
-        public LatestChangelogWindow(string changelogContent)
-        {
-            if (_hasShownChangelog)
-            {
-                Close();
-                return;
-            }
-
             InitializeComponent();
-            Owner = System.Windows.Application.Current.MainWindow;
 
-            // Enable smooth scrolling and hardware acceleration
-            RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
-            UseLayoutRounding = true;
-
-            LoadChangelogContent(changelogContent ?? "No new changelog entries available.");
-            _hasShownChangelog = true;
-        }
-
-        private void LoadChangelogContent(string changelogContent)
-        {
-            try
+            // Process and set markdown content
+            if (!string.IsNullOrEmpty(rawMarkdown))
             {
-                // Split content into lines and remove empty ones
-                var lines = changelogContent
-                    .Split('\n')
-                    .Where(line => !string.IsNullOrWhiteSpace(line))
-                    .ToList();
-
-                var items = new List<ChangelogItemViewModel>();
-                string currentDate = null;
-                string currentAuthor = null;
-                var currentContent = new List<string>();
-
-                foreach (var line in lines)
-                {
-                    if (line.StartsWith("# "))
-                    {
-                        // If we have accumulated content, add it as an item
-                        if (currentContent.Any())
-                        {
-                            items.Add(CreateChangelogItem(currentDate, currentAuthor, string.Join("\n", currentContent)));
-                            currentContent.Clear();
-                        }
-
-                        // Parse and format the date
-                        currentDate = line.Substring(2).Trim();
-                        continue;
-                    }
-
-                    if (line.StartsWith("## "))
-                    {
-                        currentAuthor = line.Substring(3).Trim();
-                        continue;
-                    }
-
-                    if (line.StartsWith("- "))
-                    {
-                        currentContent.Add("• " + line.Substring(2).Trim());
-                        continue;
-                    }
-
-                    if (line.StartsWith("---"))
-                    {
-                        // If we have accumulated content, add it as an item
-                        if (currentContent.Any())
-                        {
-                            items.Add(CreateChangelogItem(currentDate, currentAuthor, string.Join("\n", currentContent)));
-                            currentContent.Clear();
-                        }
-                        continue;
-                    }
-
-                    // Add other lines as is if not empty
-                    if (!string.IsNullOrWhiteSpace(line))
-                    {
-                        currentContent.Add(line.Trim());
-                    }
-                }
-
-                // Add the last item if we have content
-                if (currentContent.Any())
-                {
-                    items.Add(CreateChangelogItem(currentDate, currentAuthor, string.Join("\n", currentContent)));
-                }
-
-                // Set the last item's separator visibility to collapsed
-                if (items.Any())
-                {
-                    items.Last().SeparatorVisibility = Visibility.Collapsed;
-                }
-
-                // Set the processed items as the ListView's items source
-                ChangelogList.ItemsSource = items;
-                Title = $"Latest Changes ({items.Count} update{(items.Count > 1 ? "s" : "")})";
+                // Process the markdown to fix formatting issues before displaying
+                string processedMarkdown = ProcessMarkdown(rawMarkdown);
+                MarkdownViewer.Markdown = processedMarkdown;
             }
-            catch (Exception)
+            else
             {
-                // If there's any error loading the content, show an empty list
-                ChangelogList.ItemsSource = new List<ChangelogItemViewModel>();
+                MarkdownViewer.Markdown = "# No changelog available\n\nNo changes were detected.";
             }
         }
 
-        private ChangelogItemViewModel CreateChangelogItem(string date, string author, string content)
+        /// <summary>
+        /// Processes the markdown content to ensure compatibility with wpfui.markdown renderer
+        /// This is a generic processor that doesn't rely on specific text content
+        /// </summary>
+        private string ProcessMarkdown(string markdown)
         {
-            return new ChangelogItemViewModel
+            if (string.IsNullOrEmpty(markdown))
+                return markdown;
+
+            // Create a new StringBuilder to build the final result
+            StringBuilder result = new StringBuilder();
+
+            // Split the markdown into individual lines for more precise control
+            string[] lines = markdown.Replace("\r\n", "\n").Split('\n');
+            bool inList = false;
+            bool inParagraph = false;
+
+            for (int i = 0; i < lines.Length; i++)
             {
-                Date = date,
-                Author = author,
-                Content = content,
-                DateVisibility = Visibility.Visible,
-                AuthorVisibility = Visibility.Visible,
-                ContentVisibility = Visibility.Visible,
-                SeparatorVisibility = Visibility.Visible
-            };
+                string line = lines[i].TrimEnd();
+
+                // Skip empty lines but preserve them in the output
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    result.AppendLine();
+                    inList = false;
+                    inParagraph = false;
+                    continue;
+                }
+
+                // Handle headers (# header)
+                if (line.StartsWith("#"))
+                {
+                    // Fix header formatting by removing any erroneous asterisks
+                    line = Regex.Replace(line, @"\*([^*]+)\*", "$1");
+                    line = Regex.Replace(line, @"([^*]+)\*", "$1");
+                    line = Regex.Replace(line, @"\*([^*]+)", "$1");
+
+                    result.AppendLine(line);
+
+                    // Ensure headers have a blank line after them
+                    if (i + 1 < lines.Length && !string.IsNullOrWhiteSpace(lines[i + 1]) && !lines[i + 1].StartsWith("#"))
+                    {
+                        result.AppendLine();
+                    }
+                    continue;
+                }
+
+                // Check if this line looks like a section title (not starting with # but followed by a colon)
+                // This handles cases like "Key Changes:" which should be formatted as headers
+                if (line.Contains(":") && !line.StartsWith("- ") && !line.StartsWith("* ") && !line.Contains("•"))
+                {
+                    string title = line.Replace(":", "").Trim();
+                    // Remove any erroneous asterisks
+                    title = Regex.Replace(title, @"\*([^*]+)\*", "$1");
+                    title = Regex.Replace(title, @"([^*]+)\*", "$1");
+                    title = Regex.Replace(title, @"\*([^*]+)", "$1");
+
+                    // Format as a level 2 header
+                    result.AppendLine($"## {title}");
+                    result.AppendLine();
+                    continue;
+                }
+
+                // Fix lines that start with asterisk but aren't proper markdown list items
+                if (line.StartsWith("*") && !line.StartsWith("* "))
+                {
+                    // This is likely a misformatted heading, not a list item
+                    line = line.TrimStart('*').Trim();
+                    if (!string.IsNullOrEmpty(line))
+                    {
+                        if (i > 0 && string.IsNullOrWhiteSpace(lines[i - 1]) && !inParagraph)
+                        {
+                            // This appears to be a section heading
+                            result.AppendLine($"## {line}");
+                            result.AppendLine();
+                        }
+                        else
+                        {
+                            // This is regular text that was incorrectly started with an asterisk
+                            result.AppendLine(line);
+                            inParagraph = true;
+                        }
+                    }
+                    continue;
+                }
+
+                // Handle bullet points and list items (• or * or -)
+                if (line.Contains("•") || line.StartsWith("* ") || line.StartsWith("- "))
+                {
+                    // Extract the content after the bullet point
+                    string content = line
+                        .Replace("•\t", "")
+                        .Replace("•", "")
+                        .Replace("* ", "")
+                        .Replace("- ", "")
+                        .Trim();
+
+                    // Fix any trailing or leading asterisks
+                    content = Regex.Replace(content, @"([A-Za-z]+)\*", "$1");
+                    content = Regex.Replace(content, @"\*([A-Za-z]+)", "$1");
+
+                    // Determine list item indentation level
+                    string prefix = "- ";
+
+                    // Check if this is a sub-item by context
+                    if (i > 0 && inList &&
+                       (lines[i - 1].Contains("•") || lines[i - 1].StartsWith("* ") || lines[i - 1].StartsWith("- ")))
+                    {
+                        // Check if this appears to be a sub-item based on content
+                        if (content.StartsWith("in ") || content.StartsWith("and ") ||
+                            content.StartsWith("or ") || content.StartsWith("with ") ||
+                            char.IsLower(content[0]))
+                        {
+                            prefix = "  - ";
+                        }
+                    }
+
+                    result.AppendLine($"{prefix}{content}");
+                    inList = true;
+                    inParagraph = false;
+                    continue;
+                }
+
+                // Fix any standalone lines with trailing or leading asterisks
+                line = Regex.Replace(line, @"([A-Za-z]+)\*", "$1");
+                line = Regex.Replace(line, @"\*([A-Za-z]+)", "$1");
+
+                // Handle regular text lines
+                if (inList && i > 0 && (lines[i - 1].Contains("•") || lines[i - 1].StartsWith("* ") || lines[i - 1].StartsWith("- ")))
+                {
+                    // If this is a continuation of a list item, indent it properly
+                    result.AppendLine($"  {line}");
+                }
+                else
+                {
+                    result.AppendLine(line);
+                    inParagraph = true;
+                }
+            }
+
+            return result.ToString();
         }
 
-        private void AcknowledgeButton_Click(object sender, RoutedEventArgs e)
+        private void OkButton_Click(object sender, RoutedEventArgs e)
         {
+            // Set IsAcknowledged to true to indicate the user has seen the changelog
             IsAcknowledged = true;
-            Close();
-        }
-
-        protected override void OnClosed(EventArgs e)
-        {
-            IsAcknowledged = true;
-            ChangelogList.ItemsSource = null;
-            base.OnClosed(e);
-        }
-
-        public static void ResetChangelogFlag()
-        {
-            _hasShownChangelog = false;
+            this.Close();
         }
     }
-} 
+}

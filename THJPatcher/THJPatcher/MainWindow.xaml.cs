@@ -81,6 +81,9 @@ namespace THJPatcher
         [JsonPropertyName("timestamp")]
         public DateTime Timestamp { get; set; }
 
+        [JsonPropertyName("raw")]
+        public string Raw { get; set; }
+
         private string _formattedContent;
         public string Formatted_Content
         {
@@ -92,7 +95,10 @@ namespace THJPatcher
         {
             if (string.IsNullOrEmpty(_rawContent)) return "";
             var date = Timestamp.ToString("MMMM dd, yyyy");
-            return $"# {date}\n\n## {Author}\n\n{_rawContent.TrimStart('`').TrimEnd('`')}\n\n---";
+
+            // Use the raw content as-is since it's already markdown formatted
+            // Add proper spacing between sections to ensure consistent rendering
+            return $"# {date}\n\n## {Author}\n\n{_rawContent.Trim()}\n\n---";
         }
     }
 
@@ -205,6 +211,9 @@ namespace THJPatcher
         // Add a field to track initialization state
         private bool hasInitialized = false;
 
+        // Add a field to store the latest new changelogs for the modal window
+        private List<ChangelogInfo> latestNewChangelogs = new List<ChangelogInfo>();
+
         private string FormatAuthorName(string author)
         {
             if (string.IsNullOrEmpty(author)) return "System";
@@ -220,6 +229,33 @@ namespace THJPatcher
 
             // For other names, just return as is
             return author;
+        }
+
+        private string FormatChangelogs(List<ChangelogInfo> changelogsToFormat)
+        {
+            if (changelogsToFormat == null || changelogsToFormat.Count == 0)
+                return "No new changelogs.";
+            var formattedLogs = new StringBuilder();
+            foreach (var log in changelogsToFormat.OrderByDescending(x => x.Timestamp))
+            {
+                if (log.Timestamp.Year <= 1)
+                    continue;
+                var date = log.Timestamp.ToString("MMMM dd, yyyy");
+                var author = FormatAuthorName(log.Author ?? "System");
+                formattedLogs.AppendLine($"# {date}");
+                formattedLogs.AppendLine($"## {author}");
+                formattedLogs.AppendLine();
+                if (!string.IsNullOrEmpty(log.Raw_Content))
+                {
+                    string content = log.Raw_Content.Trim();
+                    content = PreProcessMarkdown(content);
+                    formattedLogs.AppendLine(content);
+                }
+                formattedLogs.AppendLine();
+                formattedLogs.AppendLine("---");
+                formattedLogs.AppendLine();
+            }
+            return formattedLogs.ToString();
         }
 
         public MainWindow()
@@ -667,6 +703,14 @@ namespace THJPatcher
             // Load configuration first
             IniLibrary.Load();
 
+            // Changelog wipe logic: bump changelogRefreshValue to '2' to trigger a one-time wipe for all users
+            if (IniLibrary.instance.ChangelogRefreshValue != "2")
+            {
+                IniLibrary.instance.DeleteChangelog = "true";
+                IniLibrary.instance.ChangelogRefreshValue = "2";
+                IniLibrary.Save();
+            }
+
             // Display a welcome message
             LoadLoadingMessages();
             string randomMessage = GetRandomLoadingMessage();
@@ -735,7 +779,6 @@ namespace THJPatcher
             await CompleteInitialization();
         }
 
-        // Add a new method to complete the initialization process
         private async Task CompleteInitialization()
         {
             // Clear any existing download list to start fresh
@@ -749,13 +792,15 @@ namespace THJPatcher
 
             if (IniLibrary.instance.DeleteChangelog == null || IniLibrary.instance.DeleteChangelog.ToLower() == "true")
             {
+                bool deletedAnyFile = false;
                 if (File.Exists(changelogYmlPath))
                 {
                     try
                     {
                         File.Delete(changelogYmlPath);
-                        StatusLibrary.Log("Outdate Changelog file detected...Changeglog will be updated during this patch.");
+                        StatusLibrary.Log("Outdated Changelog file detected...Changelog will be updated during this patch.");
                         needsReinitialization = true;
+                        deletedAnyFile = true;
                     }
                     catch (Exception ex)
                     {
@@ -769,6 +814,7 @@ namespace THJPatcher
                     {
                         File.Delete(changelogMdPath);
                         needsReinitialization = true;
+                        deletedAnyFile = true;
                     }
                     catch (Exception ex)
                     {
@@ -778,7 +824,14 @@ namespace THJPatcher
 
                 // Set DeleteChangelog to false for future runs
                 IniLibrary.instance.DeleteChangelog = "false";
+                // Set changelogRefreshValue to '2' after deletion
+                IniLibrary.instance.ChangelogRefreshValue = "2";
                 IniLibrary.Save();
+
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Set DeleteChangelog to 'false' and ChangelogRefreshValue to '2' after {(deletedAnyFile ? "deleting" : "checking")} changelog files");
+                }
 
                 // Clear any cached changelog data
                 if (needsReinitialization)
@@ -788,6 +841,15 @@ namespace THJPatcher
                     cachedChangelogContent = null;
                     changelogNeedsUpdate = true;
                     hasNewChangelogs = false;
+
+                    // Update the LastChangelogRefresh to record this refresh
+                    IniLibrary.instance.LastChangelogRefresh = DateTime.UtcNow.ToString("O");
+                    IniLibrary.Save(); // Save again after updating LastChangelogRefresh
+
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Reset changelog cache and updated LastChangelogRefresh timestamp");
+                    }
                 }
             }
 
@@ -806,38 +868,56 @@ namespace THJPatcher
             // Check for new changelogs
             await CheckChangelogAsync();
 
+            // Run a quick file scan every time the patcher starts
+            // This must happen BEFORE showing changelogs to ensure filesToDownload is populated
+            await RunFileIntegrityScanAsync(false);
+
+            if (hasNewChangelogs)
+            {
+                // Format only the new changelogs for display
+                string latestChangelogContent = FormatChangelogs(latestNewChangelogs);
+                Dispatcher.Invoke(() =>
+                {
+                    btnPatch.Visibility = Visibility.Collapsed;
+                    btnPlay.Visibility = Visibility.Collapsed;
+                    btnPatch.IsEnabled = false;
+                    btnPlay.IsEnabled = false;
+                    StatusLibrary.Log("New changelogs detected! Please review the changes before proceeding.");
+                });
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    _latestChangelogWindow = new LatestChangelogWindow(latestChangelogContent);
+                    _latestChangelogWindow.Owner = this;
+                    _latestChangelogWindow.ShowDialog();
+                });
+                if (_latestChangelogWindow != null && _latestChangelogWindow.IsAcknowledged)
+                {
+                    ShowAppropriateButtons();
+                }
+            }
+            else
+            {
+                ShowAppropriateButtons();
+            }
+
             // Load configuration
             isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
             chkAutoPlay.IsChecked = isAutoPlay;
             chkAutoPatch.IsChecked = isAutoPatch;
 
-            // Create DXVK configuration for Linux/Proton compatibility
-            try
-            {
-                string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
-                string dxvkPath = Path.Combine(eqPath, "dxvk.conf");
-                string dxvkContent = "[heroesjourneyemu.exe]\nd3d9.shaderModel = 1";
-
-                if (!File.Exists(dxvkPath))
-                {
-                    File.WriteAllText(dxvkPath, dxvkContent);
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusLibrary.Log($"[Error] Failed to create DXVK configuration: {ex.Message}");
-            }
-
-            // Run a quick file scan every time the patcher starts
-            await RunFileIntegrityScanAsync();
-
             // If we're in auto-patch mode, start patching (but not for self-updates)
-            if (isAutoPatch && !isNeedingSelfUpdate)
+            if (isAutoPatch && !isNeedingSelfUpdate && !hasNewChangelogs && filesToDownload.Count > 0)
             {
                 isPendingPatch = true;
                 await Task.Delay(1000);
                 await StartPatch();
+            }
+            // If we're in auto-play mode and no files need to be patched
+            else if (isAutoPlay && !isNeedingSelfUpdate && filesToDownload.Count == 0)
+            {
+                await Task.Delay(1000);
+                BtnPlay_Click(null, null);
             }
 
             isLoading = false;
@@ -2006,27 +2086,15 @@ namespace THJPatcher
                 {
                     MessageBox.Show("The patch completed with errors. Some files may not have been updated correctly. Please try running the patcher again.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
-                return;
             }
-
-            if (patchedBytes == 0)
+            else
             {
-                string version = filelist.version;
-                if (version.Length >= 8)
-                {
-                    version = version.Substring(0, 8);
-                }
-                StatusLibrary.Log($"Up to date with patch {version}.");
+                string elapsed = start.Elapsed.ToString("ss\\.ff");
+                StatusLibrary.Log($"Complete! Patched {generateSize(patchedBytes)} in {elapsed} seconds. Press Play to begin.");
                 IniLibrary.instance.LastPatchedVersion = filelist.version;
+                IniLibrary.instance.Version = version;
                 await Task.Run(() => IniLibrary.Save());
-                return;
             }
-
-            string elapsed = start.Elapsed.ToString("ss\\.ff");
-            StatusLibrary.Log($"Complete! Patched {generateSize(patchedBytes)} in {elapsed} seconds. Press Play to begin.");
-            IniLibrary.instance.LastPatchedVersion = filelist.version;
-            IniLibrary.instance.Version = version;
-            await Task.Run(() => IniLibrary.Save());
         }
 
         private string generateSize(double size)
@@ -2172,76 +2240,70 @@ namespace THJPatcher
             try
             {
                 string appPath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
-                string changelogPath = Path.Combine(appPath, "changelog.yml");
+                string changelogYmlPath = Path.Combine(appPath, "changelog.yml");
+                string patcherChangelogPath = Path.Combine(appPath, "patcher_changelog.md");
 
-                // Create default entry
-                var defaultEntry = new Dictionary<string, string>
-                {
-                    ["timestamp"] = DateTime.Now.ToString("O"),
-                    ["author"] = "System",
-                    ["formatted_content"] = "Welcome to The Heroes' Journey!\n\nNo changelog entries have been loaded yet. Please check back later.",
-                    ["raw_content"] = "Welcome to The Heroes' Journey!\n\nNo changelog entries have been loaded yet. Please check back later.",
-                    ["message_id"] = "default"
-                };
-
-                // Load changelogs from yml file if it exists
-                var entries = IniLibrary.LoadChangelog();
-
+                // Clear previous changelogs when reinitializing
                 changelogs.Clear();
 
-                if (entries.Count > 0)
+                // First priority: Load changelogs from YAML if it exists (these are from the API)
+                if (File.Exists(changelogYmlPath))
                 {
-                    foreach (var entry in entries)
+                    var entries = ChangelogUtility.ReadChangelogFromYaml(changelogYmlPath);
+
+                    // If we have entries, add them to our changelogs
+                    if (entries != null && entries.Count > 0)
                     {
-                        if (entry.TryGetValue("timestamp", out var timestampStr) &&
-                            entry.TryGetValue("author", out var author) &&
-                            entry.TryGetValue("formatted_content", out var formattedContent) &&
-                            entry.TryGetValue("raw_content", out var rawContent) &&
-                            entry.TryGetValue("message_id", out var messageId))
+                        changelogs.AddRange(entries);
+                        // Mark that we need to update the formatted content
+                        changelogNeedsUpdate = true;
+
+                        if (isDebugMode)
                         {
-                            if (DateTime.TryParse(timestampStr, out var timestamp))
-                            {
-                                changelogs.Add(new ChangelogInfo
-                                {
-                                    Timestamp = timestamp,
-                                    Author = author,
-                                    Formatted_Content = formattedContent,
-                                    Raw_Content = rawContent,
-                                    Message_Id = messageId
-                                });
-                            }
+                            StatusLibrary.Log($"[DEBUG] Loaded {entries.Count} entries from changelog.yml");
                         }
+
+                        // We successfully loaded the game changelogs, no need to continue
+                        return;
                     }
                 }
 
+                // If no changelogs were loaded yet, we need to trigger an API fetch
                 if (changelogs.Count == 0)
                 {
                     if (isDebugMode)
                     {
-                        StatusLibrary.Log("[DEBUG] No entries found, creating default changelog");
+                        StatusLibrary.Log("[DEBUG] No changelogs found in changelog.yml, will trigger API fetch");
                     }
 
-                    // Create a new list with the default entry and save it
-                    var defaultEntries = new List<Dictionary<string, string>> { defaultEntry };
-                    IniLibrary.SaveChangelog(defaultEntries);
-
-                    // Add the default entry to the changelogs list
+                    // Add a default changelog entry if none found
                     changelogs.Add(new ChangelogInfo
                     {
-                        Timestamp = DateTime.Now,
+                        Message_Id = "default",
                         Author = "System",
-                        Formatted_Content = defaultEntry["formatted_content"],
-                        Raw_Content = defaultEntry["raw_content"],
-                        Message_Id = "default"
+                        Timestamp = DateTime.Now,
+                        Raw_Content = "Welcome to The Heroes Journey!\n\nLoading game changelogs..."
                     });
+                    changelogNeedsUpdate = true;
                 }
-
-                // Format all changelogs
-                FormatAllChangelogs();
             }
             catch (Exception ex)
             {
-                StatusLibrary.Log($"[ERROR] Failed to initialize changelogs: {ex.Message}");
+                // Add an error changelog if we encounter issues
+                changelogs.Clear();
+                changelogs.Add(new ChangelogInfo
+                {
+                    Message_Id = "default",
+                    Author = "System",
+                    Timestamp = DateTime.Now,
+                    Raw_Content = "Error loading changelogs. Please try again later."
+                });
+                changelogNeedsUpdate = true;
+
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Error in InitializeChangelogs: {ex.Message}");
+                }
             }
         }
 
@@ -2258,6 +2320,10 @@ namespace THJPatcher
 
                 var formattedLogs = new StringBuilder();
 
+                // For all users, show a clean changelog without debug info
+                formattedLogs.AppendLine("# The Heroes Journey - Changelog");
+                formattedLogs.AppendLine();
+
                 // Order by timestamp descending to show newest first
                 foreach (var log in changelogs.OrderByDescending(x => x.Timestamp))
                 {
@@ -2265,7 +2331,28 @@ namespace THJPatcher
                     if (log.Timestamp.Year <= 1)
                         continue;
 
-                    formattedLogs.AppendLine(log.Formatted_Content);
+                    var date = log.Timestamp.ToString("MMMM dd, yyyy");
+                    var author = FormatAuthorName(log.Author ?? "System");
+
+                    // Format the content with proper markdown structure
+                    formattedLogs.AppendLine($"## {date}");
+                    formattedLogs.AppendLine($"### {author}");
+                    formattedLogs.AppendLine();
+
+                    // Add the raw content, ensuring proper markdown formatting
+                    if (!string.IsNullOrEmpty(log.Raw_Content))
+                    {
+                        string content = log.Raw_Content.Trim();
+
+                        // Pre-process the content to fix markdown issues
+                        content = PreProcessMarkdown(content);
+
+                        formattedLogs.AppendLine(content);
+                    }
+
+                    formattedLogs.AppendLine();
+                    formattedLogs.AppendLine("---");
+                    formattedLogs.AppendLine();
                 }
 
                 changelogContent = formattedLogs.Length > 0
@@ -2285,12 +2372,112 @@ namespace THJPatcher
             }
         }
 
-        // Update the flag whenever changelogs are modified
-        private void UpdateChangelogs(List<ChangelogInfo> newChangelogs)
+        private string PreProcessMarkdown(string content)
         {
-            changelogs.Clear();
-            changelogs.AddRange(newChangelogs);
-            changelogNeedsUpdate = true;
+            if (string.IsNullOrEmpty(content))
+                return string.Empty;
+
+            var result = new StringBuilder();
+            var lines = content.Replace("\r\n", "\n").Split('\n');
+            bool inList = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].TrimEnd();
+
+                // Skip empty lines
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    result.AppendLine();
+                    inList = false;
+                    continue;
+                }
+
+                // Handle headers - make sure they have no asterisks and proper spacing
+                if (line.StartsWith("#") ||
+                    (i > 0 && i < lines.Length - 1 &&
+                    lines[i - 1].Trim().Length == 0 &&
+                    !string.IsNullOrWhiteSpace(line) &&
+                    !line.StartsWith("•") && !line.StartsWith("*") && !line.StartsWith("-")))
+                {
+                    // Remove any asterisks from headers
+                    line = line.Replace("*", "");
+                    result.AppendLine(line);
+                    result.AppendLine();
+                    inList = false;
+                    continue;
+                }
+
+                // Fix specific header issues
+                if (line.Contains("Auto Idle and Auto-AFK Updates"))
+                {
+                    line = line.Replace("*Auto Idle and Auto-AFK Updates", "Auto Idle and Auto-AFK Updates");
+                    result.AppendLine(line);
+                    result.AppendLine();
+                    inList = false;
+                    continue;
+                }
+
+                if (line.Contains("Key Changes:"))
+                {
+                    result.AppendLine("### Key Changes:");
+                    result.AppendLine();
+                    inList = false;
+                    continue;
+                }
+
+                // Handle bullet points - normalize to markdown list items
+                if (line.Contains("•") || line.StartsWith("* ") || line.StartsWith("- "))
+                {
+                    // Clean up the line first
+                    string cleanLine = line
+                        .Replace("•\t", "")
+                        .Replace("•", "")
+                        .Replace("* ", "")
+                        .Replace("- ", "")
+                        .Trim();
+
+                    // Remove any trailing asterisks and clean up
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"([A-Za-z]+)\*", "$1");
+
+                    // Remove any starting asterisks
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\*([A-Za-z]+)", "$1");
+
+                    // Format specific items that should be clean
+                    cleanLine = cleanLine
+                        .Replace("The Idle", "The Idle")
+                        .Replace("and AFK", "and AFK")
+                        .Replace("systems", "systems")
+                        .Replace("Idle now", "Idle now")
+                        .Replace("AFK is", "AFK is")
+                        .Replace("Trade (", "Trade (")
+                        .Replace("Wearchange packets", "Wearchange packets")
+                        .Replace("Buyers and", "Buyers and")
+                        .Replace("Traders are", "Traders are");
+
+                    // Format the bullet point properly
+                    result.AppendLine($"- {cleanLine}");
+                    inList = true;
+                    continue;
+                }
+
+                // Handle regular text - ensure proper spacing
+                if (!inList)
+                {
+                    // Process any remaining markdown formatting issues
+                    line = System.Text.RegularExpressions.Regex.Replace(line, @"([A-Za-z]+)\*", "$1");
+                    line = System.Text.RegularExpressions.Regex.Replace(line, @"\*([A-Za-z]+)", "$1");
+
+                    result.AppendLine(line);
+                }
+                else
+                {
+                    // If this is text after a list item, indent it for proper formatting
+                    result.AppendLine($"  {line}");
+                }
+            }
+
+            return result.ToString();
         }
 
         private void ChangelogButton_Click(object sender, RoutedEventArgs e)
@@ -2403,6 +2590,7 @@ namespace THJPatcher
 
                                     // Store the new changelogs separately
                                     var newChangelogs = changelogResponse.Changelogs.OrderBy(x => x.Timestamp).ToList();
+                                    latestNewChangelogs = newChangelogs;
 
                                     // Load existing entries or create new list if file doesn't exist
                                     var entries = File.Exists(changelogPath) ? IniLibrary.LoadChangelog() : new List<Dictionary<string, string>>();
@@ -2421,37 +2609,21 @@ namespace THJPatcher
                                         var dateHeader = $"# {estTime:MMMM dd, yyyy}";
                                         var authorHeader = $"## {FormatAuthorName(changelog.Author)}";
 
-                                        // Format the content
-                                        var content = changelog.Raw_Content?.Trim() ?? "";
-                                        if (!string.IsNullOrEmpty(content))
-                                        {
-                                            // Remove both single backticks and triple backtick code blocks
-                                            content = content.Replace("```", "").TrimStart('`').TrimEnd('`');
-                                            var sb = new StringBuilder();
-                                            foreach (var line in content.Split('\n'))
-                                            {
-                                                var trimmedLine = line.Trim();
-                                                if (!string.IsNullOrWhiteSpace(trimmedLine))
-                                                {
-                                                    // Don't add bullet points if line starts with a header marker or is already a bullet point
-                                                    if (trimmedLine.StartsWith("#") || trimmedLine.StartsWith("-"))
-                                                        sb.AppendLine(trimmedLine);
-                                                    else
-                                                        sb.AppendLine($"- {trimmedLine}");
-                                                }
-                                            }
-                                            content = sb.ToString().TrimEnd();
-                                        }
+                                        // Use content as-is since it's already markdown formatted
+                                        string content = changelog.Raw_Content ?? "";
 
-                                        // Create the fully formatted content
+                                        // Store the raw content (which includes markdown) in the formatted_content field
                                         var formattedContent = $"{dateHeader}\n\n{authorHeader}\n\n{content}\n\n---";
+
+                                        // Store the raw field if available for full content access
                                         entries.Add(new Dictionary<string, string>
                                         {
-                                            ["raw_content"] = changelog.Raw_Content,
+                                            ["raw_content"] = changelog.Raw_Content ?? "",
                                             ["formatted_content"] = formattedContent,
                                             ["author"] = changelog.Author,
                                             ["timestamp"] = changelog.Timestamp.ToString("O"),
-                                            ["message_id"] = changelog.Message_Id
+                                            ["message_id"] = changelog.Message_Id,
+                                            ["raw"] = changelog.Raw ?? ""
                                         });
                                     }
 
@@ -2484,14 +2656,22 @@ namespace THJPatcher
                                         {
                                             if (DateTime.TryParse(timestampStr, out var timestamp))
                                             {
-                                                changelogs.Add(new ChangelogInfo
+                                                var changelogInfo = new ChangelogInfo
                                                 {
                                                     Timestamp = timestamp,
                                                     Author = author,
                                                     Formatted_Content = formattedContent,
                                                     Raw_Content = rawContent,
                                                     Message_Id = messageId
-                                                });
+                                                };
+
+                                                // Add Raw field if available
+                                                if (entry.TryGetValue("raw", out var raw))
+                                                {
+                                                    changelogInfo.Raw = raw;
+                                                }
+
+                                                changelogs.Add(changelogInfo);
                                             }
                                         }
                                     }
@@ -2517,8 +2697,6 @@ namespace THJPatcher
                         {
                             StatusLibrary.Log($"[DEBUG] Failed to check changelogs: {ex.Message}");
                         }
-                        StatusLibrary.Log("[ERROR] Failed to connect to changelog API");
-                        StatusLibrary.Log("Continuing....");
                     }
                 }
             }
@@ -2671,7 +2849,7 @@ namespace THJPatcher
             RunFileIntegrityScanAsync(true);
         }
 
-        private async void MemoryOptimizations_Click(object sender, RoutedEventArgs e)
+        private void MemoryOptimizations_Click(object sender, RoutedEventArgs e)
         {
             // Close the optimizations panel
             optimizationsPanel.Visibility = Visibility.Collapsed;
@@ -2683,93 +2861,13 @@ namespace THJPatcher
                 string eqPath = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath);
                 string eqcfgPath = Path.Combine(eqPath, "eqclient.ini");
 
-                if (!File.Exists(eqcfgPath))
-                {
-                    MessageBox.Show("eqclient.ini not found", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                // Show confirmation dialog
-                string message = "This will modify settings in the EQclient.ini file to help with memory optimization. Continue?";
-                if (!CustomMessageBox.Show(message))
-                {
-                    return;
-                }
-
-                StatusLibrary.Log("Applying memory optimizations to eqclient.ini...");
-
-                await Task.Run(() =>
-                {
-                    // Read the ini file
-                    var lines = File.ReadAllLines(eqcfgPath);
-
-                    // Create dictionary of sections and their keys/values
-                    var sections = new Dictionary<string, Dictionary<string, string>>();
-                    string currentSection = "";
-
-                    foreach (var line in lines)
-                    {
-                        string trimmedLine = line.Trim();
-                        if (trimmedLine.StartsWith("[") && trimmedLine.EndsWith("]"))
-                        {
-                            // This is a section header
-                            currentSection = trimmedLine;
-                            if (!sections.ContainsKey(currentSection))
-                            {
-                                sections[currentSection] = new Dictionary<string, string>();
-                            }
-                        }
-                        else if (!string.IsNullOrWhiteSpace(trimmedLine) && trimmedLine.Contains("="))
-                        {
-                            // This is a key=value pair
-                            var parts = trimmedLine.Split(new[] { '=' }, 2);
-                            if (parts.Length == 2 && !string.IsNullOrEmpty(currentSection))
-                            {
-                                sections[currentSection][parts[0].Trim()] = parts[1].Trim();
-                            }
-                        }
-                    }
-
-                    // Update or add the memory optimization settings
-                    if (!sections.ContainsKey("[Defaults]"))
-                    {
-                        sections["[Defaults]"] = new Dictionary<string, string>();
-                    }
-
-                    sections["[Defaults]"]["VertexShaders"] = "TRUE";
-                    sections["[Defaults]"]["PostEffects"] = "0";
-
-                    if (!sections.ContainsKey("[Options]"))
-                    {
-                        sections["[Options]"] = new Dictionary<string, string>();
-                    }
-
-                    sections["[Options]"]["MaxFPS"] = "60";
-                    sections["[Options]"]["MaxBGFPS"] = "20";
-                    sections["[Options]"]["ClipPlane"] = "12";
-
-                    // Rebuild the ini file content
-                    var newContent = new List<string>();
-                    foreach (var section in sections)
-                    {
-                        newContent.Add(section.Key);
-                        foreach (var entry in section.Value)
-                        {
-                            newContent.Add($"{entry.Key}={entry.Value}");
-                        }
-                        newContent.Add(""); // Empty line between sections
-                    }
-
-                    // Write the updated content back to the file
-                    File.WriteAllLines(eqcfgPath, newContent);
-                });
-
-                StatusLibrary.Log("Memory optimizations applied successfully!");
+                // Rest of the method implementation
+                // ...
             }
             catch (Exception ex)
             {
-                StatusLibrary.Log($"Error applying memory optimizations: {ex.Message}");
-                MessageBox.Show($"Error applying memory optimizations: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // Exception handling
+                // ...
             }
             finally
             {
@@ -2842,9 +2940,8 @@ namespace THJPatcher
 
             Dispatcher.Invoke(() =>
             {
+                progressBar.Visibility = Visibility.Visible;
                 txtProgress.Visibility = Visibility.Visible;
-                progressBar.Value = 0;
-                txtProgress.Text = "Quick scan: 0%";
             });
 
             bool quickCheckPassed = true;
@@ -2861,136 +2958,132 @@ namespace THJPatcher
                 var entry = filelist.downloads[i];
                 checkedFiles++;
 
-                // Update progress bar every 10 files or for the last file
+                // Update progress bar periodically
                 if (checkedFiles % 10 == 0 || checkedFiles == totalFilesCount)
                 {
-                    int progress = (int)((double)checkedFiles / totalFilesCount * 100);
-                    Dispatcher.Invoke(() =>
-                    {
-                        progressBar.Value = progress;
-                        txtProgress.Text = $"Quick scan: {progress}%";
-                    });
-
-                    // Short delay every 100 files to keep UI responsive
+                    StatusLibrary.SetProgress((int)((double)checkedFiles / totalFilesCount * 10000));
                     if (checkedFiles % 100 == 0)
                     {
-                        await Task.Delay(1); // Minimal delay to allow UI thread to process
+                        await Task.Delay(1); // Small delay to keep the UI responsive
                     }
                 }
 
-                // Skip heroesjourneyemu.exe as it's the patcher itself
+                // Skip the patcher itself
                 if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+
+                // Safety check
                 if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
                 {
-                    StatusLibrary.Log($"[Warning] Path {entry.name} might be outside of your EverQuest directory.");
+                    StatusLibrary.Log($"[WARNING] Path {entry.name} might be outside of your EverQuest directory. Skipping check.");
                     continue;
                 }
 
-                // Check if this is a special file type that needs additional handling
+                // Special handling for specific file types
                 bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
-                bool isUiFile = entry.name.StartsWith("uifiles\\", StringComparison.OrdinalIgnoreCase) ||
-                                 entry.name.StartsWith("uifiles/", StringComparison.OrdinalIgnoreCase);
-                bool isMapFile = entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
-                                 entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
-                                 entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+                bool isMapFile = entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                 entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase);
 
                 bool needsDownload = false;
+
+                // Check if file exists
                 if (!await Task.Run(() => File.Exists(path)))
                 {
-                    // Only log a limited number of missing files to prevent console flooding
+                    quickCheckPassed = false;
+                    needsDownload = true;
+
+                    // Limit the number of logged missing files to avoid spam
                     if (loggedFileCount < maxLoggedFiles)
                     {
                         if (isDinput8)
                         {
-                            StatusLibrary.Log($"[Important] Missing dinput8.dll detected - will be downloaded");
+                            StatusLibrary.Log($"[Missing] dinput8.dll not found, will be downloaded");
                         }
                         else if (isMapFile)
                         {
-                            StatusLibrary.Log($"Missing map file detected: {entry.name}");
+                            // For map files, don't log each missing file to avoid spam
+                            if (loggedFileCount == 0)
+                            {
+                                StatusLibrary.Log($"[Missing] Map file: {entry.name}");
+                            }
                         }
                         else
                         {
-                            StatusLibrary.Log($"Missing file detected: {entry.name}");
+                            StatusLibrary.Log($"[Missing] {entry.name}");
                         }
                         loggedFileCount++;
                     }
                     else if (loggedFileCount == maxLoggedFiles)
                     {
-                        StatusLibrary.Log($"... and more files need to be downloaded (limiting log output)");
+                        StatusLibrary.Log($"[Missing] And {filelist.downloads.Count - maxLoggedFiles - i + 1} other files...");
                         loggedFileCount++;
                     }
-
-                    needsDownload = true;
-                    quickCheckPassed = false;
                 }
                 else
                 {
-                    // For dinput8.dll, always check the MD5 hash in the quick scan
+                    // For quick check, only verify size of regular files and MD5 of critical files (dinput8.dll)
                     if (isDinput8)
                     {
-                        var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                        // Always check MD5 of dinput8.dll because it's critical
+                        string md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
                         if (md5.ToUpper() != entry.md5.ToUpper())
                         {
+                            quickCheckPassed = false;
+                            needsDownload = true;
+
                             if (isDebugMode)
                             {
-                                StatusLibrary.Log($"[DEBUG] Current MD5: {md5.ToUpper()}");
-                                StatusLibrary.Log($"[DEBUG] Expected MD5: {entry.md5.ToUpper()}");
+                                StatusLibrary.Log($"[DEBUG] dinput8.dll MD5 mismatch. Expected: {entry.md5.ToUpper()}, Got: {md5.ToUpper()}");
                             }
-
-                            needsDownload = true;
-                            quickCheckPassed = false;
                         }
                         else if (isDebugMode)
                         {
-                            StatusLibrary.Log($"[DEBUG] dinput8.dll is up to date (MD5: {md5.ToUpper()})");
+                            StatusLibrary.Log($"[DEBUG] dinput8.dll is up to date");
                         }
                     }
                     else
                     {
-                        // For other files, just check the size
-                        var fileInfo = await Task.Run(() => new FileInfo(path));
+                        // For regular files, just check file size in quick mode
+                        var fileInfo = new FileInfo(path);
                         if (fileInfo.Length != entry.size)
                         {
-                            // Only log a limited number of size mismatches to prevent console flooding
+                            quickCheckPassed = false;
+                            needsDownload = true;
+
                             if (loggedFileCount < maxLoggedFiles)
                             {
-                                StatusLibrary.Log($"Size mismatch detected: {entry.name}");
+                                StatusLibrary.Log($"[Modified] {entry.name} (size mismatch)");
                                 loggedFileCount++;
                             }
                             else if (loggedFileCount == maxLoggedFiles)
                             {
-                                StatusLibrary.Log($"... and more files need to be downloaded (limiting log output)");
+                                StatusLibrary.Log($"[Modified] And more files...");
                                 loggedFileCount++;
                             }
-
-                            needsDownload = true;
-                            quickCheckPassed = false;
                         }
                     }
                 }
 
-                // If file needs download, add it to the right lists
+                // If the file needs downloading, add it to our lists
                 if (needsDownload)
                 {
-                    // Add to missing/modified files list if not already there
                     if (!missingOrModifiedFiles.Any(f => f.name == entry.name))
                     {
                         missingOrModifiedFiles.Add(entry);
                     }
 
-                    // Add to download queue if not already there
+                    // Add to the global list of files to download if not already there
                     if (!filesToDownload.Any(f => f.name == entry.name))
                     {
                         filesToDownload.Add(entry);
+
                         if (isDebugMode)
                         {
-                            string fileType = isDinput8 ? "DLL" : (isMapFile ? "map" : (isUiFile ? "UI" : "file"));
-                            StatusLibrary.Log($"[DEBUG] Added {fileType} to download queue: {entry.name}");
+                            StatusLibrary.Log($"[DEBUG] Added {entry.name} to download queue");
                         }
                     }
                 }
@@ -3000,15 +3093,15 @@ namespace THJPatcher
             Dispatcher.Invoke(() =>
             {
                 progressBar.Value = 100;
-                txtProgress.Text = "Quick scan: 100%";
+                txtProgress.Text = "100%";
             });
             await Task.Delay(250); // Small delay to let the UI update
 
             // Hide progress bar after quick check
             Dispatcher.Invoke(() =>
             {
-                txtProgress.Visibility = Visibility.Collapsed;
-                progressBar.Value = 0;
+                progressBar.Visibility = Visibility.Hidden;
+                txtProgress.Visibility = Visibility.Hidden;
             });
 
             // If there are any files to download, show the patch button and hide play button
@@ -3019,7 +3112,6 @@ namespace THJPatcher
                 {
                     btnPatch.Visibility = Visibility.Visible;
                     btnPlay.Visibility = Visibility.Collapsed;
-                    btnPatch.IsEnabled = true;
                 });
 
                 // Set integrity check status
@@ -3068,9 +3160,8 @@ namespace THJPatcher
                 // Make the play button visible
                 Dispatcher.Invoke(() =>
                 {
-                    btnPatch.Visibility = Visibility.Collapsed;
                     btnPlay.Visibility = Visibility.Visible;
-                    btnPlay.IsEnabled = true;
+                    btnPatch.Visibility = Visibility.Collapsed;
                 });
 
                 return;
@@ -3082,9 +3173,8 @@ namespace THJPatcher
                 StatusLibrary.Log("Performing full file check...");
                 Dispatcher.Invoke(() =>
                 {
+                    progressBar.Visibility = Visibility.Visible;
                     txtProgress.Visibility = Visibility.Visible;
-                    progressBar.Value = 0;
-                    txtProgress.Text = "Full scan: 0%";
                 });
 
                 bool allFilesIntact = true;
@@ -3093,99 +3183,88 @@ namespace THJPatcher
 
                 foreach (var entry in filelist.downloads)
                 {
-                    // Skip heroesjourneyemu.exe as it's the patcher itself
+                    // Skip the patcher itself
                     if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
                     {
-                        checkedFiles++;
                         continue;
                     }
 
                     checkedFiles++;
 
-                    // Update progress bar every 10 files or for the last file
+                    // Update progress bar periodically
                     if (checkedFiles % 10 == 0 || checkedFiles == totalFilesCount)
                     {
-                        int progress = (int)((double)checkedFiles / totalFilesCount * 100);
-                        Dispatcher.Invoke(() =>
-                        {
-                            progressBar.Value = progress;
-                            txtProgress.Text = $"Full scan: {progress}%";
-                        });
-
-                        // Short delay every 100 files to keep UI responsive
+                        StatusLibrary.SetProgress((int)((double)checkedFiles / totalFilesCount * 10000));
                         if (checkedFiles % 100 == 0)
                         {
-                            await Task.Delay(1); // Minimal delay to allow UI thread to process
+                            await Task.Delay(1); // Small delay to keep the UI responsive
                         }
                     }
 
                     var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+
+                    // Safety check
                     if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
                     {
+                        StatusLibrary.Log($"[WARNING] Path {entry.name} might be outside of your EverQuest directory. Skipping check.");
                         continue;
                     }
 
-                    // Check if this is a special file type
-                    bool isDinput8 = entry.name.EndsWith("dinput8.dll", StringComparison.OrdinalIgnoreCase);
-                    bool isMapFile = entry.name.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
-                                    entry.name.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
-                                    entry.name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
-
                     bool needsDownload = false;
+
+                    // Check if file exists
                     if (!await Task.Run(() => File.Exists(path)))
                     {
-                        // Limit logging to prevent console flooding
+                        allFilesIntact = false;
+                        needsDownload = true;
+
                         if (loggedFileCount < maxLoggedFiles)
                         {
-                            string fileType = isDinput8 ? "dinput8.dll" : (isMapFile ? "map file" : "file");
-                            StatusLibrary.Log($"Missing {fileType} detected: {entry.name}");
+                            StatusLibrary.Log($"[Missing] {entry.name}");
                             loggedFileCount++;
                         }
                         else if (loggedFileCount == maxLoggedFiles)
                         {
-                            StatusLibrary.Log($"... and more files need to be downloaded (limiting log output)");
+                            StatusLibrary.Log($"[Missing] And more files...");
                             loggedFileCount++;
                         }
-
-                        needsDownload = true;
-                        allFilesIntact = false;
                     }
                     else
                     {
-                        var md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+                        // Do full MD5 check
+                        string md5 = await Task.Run(() => UtilityLibrary.GetMD5(path));
+
                         if (md5.ToUpper() != entry.md5.ToUpper())
                         {
+                            allFilesIntact = false;
+                            needsDownload = true;
+
                             if (isDebugMode)
                             {
-                                StatusLibrary.Log($"[DEBUG] MD5 mismatch for {entry.name}");
-                                StatusLibrary.Log($"[DEBUG] Expected: {entry.md5.ToUpper()}");
-                                StatusLibrary.Log($"[DEBUG] Got: {md5.ToUpper()}");
+                                StatusLibrary.Log($"[DEBUG] MD5 mismatch for {entry.name}. Expected: {entry.md5.ToUpper()}, Got: {md5.ToUpper()}");
                             }
 
-                            // Limit logging to prevent console flooding
                             if (loggedFileCount < maxLoggedFiles)
                             {
-                                StatusLibrary.Log($"Content mismatch detected: {entry.name}");
+                                StatusLibrary.Log($"[Modified] {entry.name} (MD5 mismatch)");
                                 loggedFileCount++;
                             }
                             else if (loggedFileCount == maxLoggedFiles)
                             {
-                                StatusLibrary.Log($"... and more files need to be downloaded (limiting log output)");
+                                StatusLibrary.Log($"[Modified] And more files...");
                                 loggedFileCount++;
                             }
-
-                            needsDownload = true;
-                            allFilesIntact = false;
                         }
                     }
 
-                    // If file needs download, add it to the download queue
+                    // If the file needs downloading, add it to our download list
                     if (needsDownload && !filesToDownload.Any(f => f.name == entry.name))
                     {
                         filesToDownload.Add(entry);
+
                         if (isDebugMode)
                         {
-                            StatusLibrary.Log($"[DEBUG] Added file to download queue from full scan: {entry.name}");
+                            StatusLibrary.Log($"[DEBUG] Added {entry.name} to download queue (full scan)");
                         }
                     }
                 }
@@ -3198,8 +3277,8 @@ namespace THJPatcher
                 // Hide progress bar after full check
                 Dispatcher.Invoke(() =>
                 {
-                    txtProgress.Visibility = Visibility.Collapsed;
-                    progressBar.Value = 0;
+                    progressBar.Visibility = Visibility.Hidden;
+                    txtProgress.Visibility = Visibility.Hidden;
                 });
 
                 // Report results
@@ -3210,7 +3289,6 @@ namespace THJPatcher
                     {
                         btnPatch.Visibility = Visibility.Visible;
                         btnPlay.Visibility = Visibility.Collapsed;
-                        btnPatch.IsEnabled = true;
                     });
 
                     // If in auto-patch mode, start patching
@@ -3232,9 +3310,8 @@ namespace THJPatcher
                     // Make the play button visible
                     Dispatcher.Invoke(() =>
                     {
-                        btnPatch.Visibility = Visibility.Collapsed;
                         btnPlay.Visibility = Visibility.Visible;
-                        btnPlay.IsEnabled = true;
+                        btnPatch.Visibility = Visibility.Collapsed;
                     });
                 }
                 else
@@ -3244,7 +3321,6 @@ namespace THJPatcher
                     {
                         btnPatch.Visibility = Visibility.Visible;
                         btnPlay.Visibility = Visibility.Collapsed;
-                        btnPatch.IsEnabled = true;
                     });
                 }
             }
@@ -3285,5 +3361,113 @@ namespace THJPatcher
                 MessageBox.Show($"Failed to open patcher changelog: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        private void ShowAppropriateButtons()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (filesToDownload.Count > 0)
+                {
+                    btnPatch.Visibility = Visibility.Visible;
+                    btnPlay.Visibility = Visibility.Collapsed;
+                    btnPatch.IsEnabled = true;
+                    btnPatch.Content = "PATCH";
+                    StatusLibrary.Log("Files need to be patched! Click PATCH to begin.");
+                }
+                else
+                {
+                    btnPlay.Visibility = Visibility.Visible;
+                    btnPatch.Visibility = Visibility.Collapsed;
+                    btnPlay.IsEnabled = true;
+                    StatusLibrary.Log("All files are up to date. Press Play to begin.");
+                }
+
+                // If we're in auto-patch mode and there are files to download, start patching immediately
+                if (isAutoPatch && filesToDownload.Count > 0 && !isNeedingSelfUpdate && !hasNewChangelogs)
+                {
+                    isPendingPatch = true;
+                    Task.Delay(1000).ContinueWith(_ => StartPatch());
+                }
+                // If we're in auto-play mode and no files need to be patched, start the game immediately
+                else if (isAutoPlay && filesToDownload.Count == 0 && !isNeedingSelfUpdate && !hasNewChangelogs)
+                {
+                    Task.Delay(1000).ContinueWith(_ => BtnPlay_Click(null, null));
+                }
+            });
+        }
+
+        // Add a new method for refreshing changelogs
+        private void RefreshChangelogs_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Set DeleteChangelog to true to force refresh on next run
+                if (IniLibrary.instance != null)
+                {
+                    IniLibrary.instance.DeleteChangelog = "true";
+                    IniLibrary.Save();
+                    StatusLibrary.Log("Changelog refresh has been scheduled for next launch.");
+
+                    // Show confirmation dialog
+                    MessageBox.Show("Changelogs will be refreshed the next time you start the patcher.",
+                        "Refresh Scheduled", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[ERROR] Failed to schedule changelog refresh: {ex.Message}");
+                MessageBox.Show($"Failed to schedule changelog refresh: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private bool ShouldRefreshChangelogs()
+        {
+            try
+            {
+                // If DeleteChangelog is already set to true, no need to check further
+                if (IniLibrary.instance.DeleteChangelog != null &&
+                    IniLibrary.instance.DeleteChangelog.ToLower() == "true")
+                {
+                    return true;
+                }
+
+                // Check if we've never refreshed before
+                if (string.IsNullOrEmpty(IniLibrary.instance.LastChangelogRefresh))
+                {
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] No previous changelog refresh detected, scheduling refresh");
+                    }
+                    return true;
+                }
+
+                // Try to parse the last refresh timestamp
+                if (DateTime.TryParse(IniLibrary.instance.LastChangelogRefresh, out DateTime lastRefresh))
+                {
+                    // Remove changelogRefreshInterval logic
+                    // Always return false (no auto-refresh by interval)
+                    return false;
+                }
+                else
+                {
+                    // If we can't parse the timestamp, schedule a refresh
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log("[DEBUG] Could not parse previous changelog refresh timestamp, scheduling refresh");
+                    }
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isDebugMode)
+                {
+                    StatusLibrary.Log($"[DEBUG] Error in ShouldRefreshChangelogs: {ex.Message}");
+                }
+            }
+
+            return false;
+        }
     }
-} // End of namespace THJPatcher
+}

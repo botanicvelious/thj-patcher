@@ -24,6 +24,9 @@ namespace THJPatcher
         public string LastIntegrityCheck { get; set; }  // ISO 8601 timestamp
         public string QuickCheckStatus { get; set; }    // success/failed
         public string DeleteChangelog { get; set; }     // true/false
+        public string LastChangelogRefresh { get; set; } // ISO 8601 timestamp of last changelog refresh
+        public string ChangelogRefreshInterval { get; set; } // Number of days between automatic refreshes
+        public string ChangelogRefreshValue { get; set; } // Used to trigger changelog refresh when value is changed
 
         private static string GetConfigPath()
         {
@@ -53,7 +56,7 @@ namespace THJPatcher
                         .Build();
                     serializer.Serialize(writer, instance);
                 }
-                
+
                 // Verify the file was written
                 if (File.Exists(configPath))
                 {
@@ -77,8 +80,9 @@ namespace THJPatcher
         {
             string configPath = GetConfigPath();
             Debug.WriteLine($"[DEBUG] Loading config from: {configPath}");
-            
-            try {
+
+            try
+            {
                 if (File.Exists(configPath))
                 {
                     string contents = File.ReadAllText(configPath);
@@ -88,7 +92,7 @@ namespace THJPatcher
                 {
                     Debug.WriteLine($"[DEBUG] No existing config file found");
                 }
-                
+
                 using (var input = File.OpenText(configPath))
                 {
                     var deserializer = new DeserializerBuilder()
@@ -97,16 +101,21 @@ namespace THJPatcher
                     instance = deserializer.Deserialize<IniLibrary>(input);
                 }
 
-                if (instance == null) {
+                if (instance == null)
+                {
                     Debug.WriteLine($"[DEBUG] Deserialized instance is null, resetting defaults");
                     ResetDefaults();
                     Save();
                 }
-            } catch (FileNotFoundException e) {
+            }
+            catch (FileNotFoundException e)
+            {
                 Debug.WriteLine($"[DEBUG] Config file not found: {e.Message}");
                 ResetDefaults();
                 Save();
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 Debug.WriteLine($"[DEBUG] Error loading config: {e.Message}");
                 Debug.WriteLine($"[DEBUG] Stack trace: {e.StackTrace}");
                 ResetDefaults();
@@ -150,7 +159,10 @@ namespace THJPatcher
             instance.LastPatchedVersion = "";
             instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
             instance.QuickCheckStatus = "success";
-            instance.DeleteChangelog = "false";
+            instance.DeleteChangelog = "true";
+            instance.LastChangelogRefresh = "";
+            instance.ChangelogRefreshInterval = "7";
+            instance.ChangelogRefreshValue = "";
         }
 
         public static string GetLatestMessageId()

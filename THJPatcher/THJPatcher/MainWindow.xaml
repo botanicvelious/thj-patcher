@@ -509,6 +509,15 @@
                                     Style="{StaticResource GoldButton}"
                                     Click="PatcherChangelog_Click"
                                     ToolTip="View changes made to the patcher application"/>
+                                    
+                            <Button x:Name="btnRefreshChangelogs"
+                                    Content="Refresh Changelogs"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="RefreshChangelogs_Click"
+                                    ToolTip="Set the patcher to refresh game changelogs on next run"/>
 
                             <!-- Add more buttons here -->
                         </WrapPanel>

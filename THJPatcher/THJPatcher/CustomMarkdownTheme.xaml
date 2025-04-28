@@ -1,0 +1,60 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:md="http://schemas.lepo.co/wpfui/2022/xaml/markdown"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+
+    <!-- Define gold color resources for markdown elements -->
+    <SolidColorBrush x:Key="MarkdownViewerBackground" Color="#252538" />
+    <SolidColorBrush x:Key="MarkdownViewerForeground" Color="#FBE9A4" />
+    
+    <!-- Headers -->
+    <SolidColorBrush x:Key="MarkdownHeader1Foreground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownHeader2Foreground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownHeader3Foreground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownHeader4Foreground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownHeader5Foreground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownHeader6Foreground" Color="#FBE9A4" />
+    
+    <!-- Text elements -->
+    <SolidColorBrush x:Key="MarkdownTextForeground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownLinkForeground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownCodeForeground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownCodeBlockForeground" Color="#FBE9A4" />
+    
+    <!-- Quote block -->
+    <SolidColorBrush x:Key="MarkdownQuoteBlockBorderBrush" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownQuoteBlockForeground" Color="#FBE9A4" />
+    
+    <!-- Other elements -->
+    <SolidColorBrush x:Key="MarkdownThematicBreakStroke" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownMarkedBackground" Color="#252538" />
+    <SolidColorBrush x:Key="MarkdownMarkedForeground" Color="#FBE9A4" />
+    
+    <!-- Table elements -->
+    <SolidColorBrush x:Key="MarkdownTableBorderBrush" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownTableHeaderBackground" Color="#252538" />
+    <SolidColorBrush x:Key="MarkdownTableHeaderForeground" Color="#FBE9A4" />
+    <SolidColorBrush x:Key="MarkdownTableCellBackground" Color="#252538" />
+    <SolidColorBrush x:Key="MarkdownTableCellForeground" Color="#FBE9A4" />
+
+    <!-- List elements styling -->
+    <Style x:Key="MarkdownListStyle" TargetType="List">
+        <Setter Property="Margin" Value="20,0,0,0" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    
+    <!-- Bullet styling -->
+    <Style x:Key="MarkdownBulletStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,5,0" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    
+    <!-- List item styling -->
+    <Style x:Key="MarkdownListItemStyle" TargetType="ListItem">
+        <Setter Property="Margin" Value="0,0,0,0" />
+        <Setter Property="Padding" Value="0,0,0,0" />
+    </Style>
+
+</ResourceDictionary>
