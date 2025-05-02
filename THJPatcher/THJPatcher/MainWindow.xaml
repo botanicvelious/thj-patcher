@@ -236,21 +236,6 @@
                     </Button.IsEnabled>
                 </Button>
                 
-                <Button Content="THJDI Item Search"
-                        Width="160"
-                        Height="40"
-                        Margin="0,0,0,10"
-                        Style="{StaticResource GoldButton}"
-                        Click="LinkButton_Click"
-                        Tag="https://www.thjdi.cc/">
-                    <Button.IsEnabled>
-                        <MultiBinding Converter="{StaticResource BooleanOrConverter}">
-                            <Binding ElementName="btnPlay" Path="IsVisible"/>
-                            <Binding ElementName="btnPatch" Path="IsVisible"/>
-                        </MultiBinding>
-                    </Button.IsEnabled>
-                </Button>
-                
                 <Button Content="EQDB Item Search"
                         Width="160"
                         Height="40"
