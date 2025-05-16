@@ -2975,6 +2975,16 @@ namespace THJPatcher
                     continue;
                 }
 
+                // Skip Memory.ini files
+                if (entry.name.EndsWith("Memory.ini", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (isDebugMode)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Skipping Memory.ini file: {entry.name}");
+                    }
+                    continue;
+                }
+
                 var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
 
                 // Safety check
@@ -3187,6 +3197,16 @@ namespace THJPatcher
                     // Skip the patcher itself
                     if (entry.name.Equals("heroesjourneyemu.exe", StringComparison.OrdinalIgnoreCase))
                     {
+                        continue;
+                    }
+
+                    // Skip Memory.ini files
+                    if (entry.name.EndsWith("Memory.ini", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Skipping Memory.ini file in full scan: {entry.name}");
+                        }
                         continue;
                     }
 
