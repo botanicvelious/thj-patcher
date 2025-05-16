@@ -3470,13 +3470,12 @@ namespace THJPatcher
 
             return false;
         }
-
         private void ChkEnableCpuAffinity_CheckedChanged(object sender, RoutedEventArgs e)
         {
             if (isLoading) return;
             bool isEnabled = chkEnableCpuAffinity.IsChecked ?? false;
             IniLibrary.instance.EnableCpuAffinity = isEnabled ? "true" : "false";
-            StatusLibrary.Log($"CPU Affinity {(isEnabled ? "enabled" : "disabled")} - EverQuest will{(isEnabled ? "" : " not")} be limited to 4 cores");
+            StatusLibrary.Log($"CPU Affinity {(isEnabled ? "enabled" : "disabled")}");
             IniLibrary.Save();
         }
     }

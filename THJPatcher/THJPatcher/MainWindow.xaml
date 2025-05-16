@@ -311,14 +311,11 @@
                     Height="40"
                     Visibility="Collapsed"
                     Style="{StaticResource PlayButton}"/>
-                    
-            <CheckBox x:Name="chkEnableCpuAffinity"
+                      <CheckBox x:Name="chkEnableCpuAffinity"
                      Content="Enable CPU Affinity"
                      Margin="0,10,0,0"
                      Foreground="#FBE9A4"
-                     ToolTip="Limit EverQuest to 4 CPU cores for better stability"
-                     Checked="ChkEnableCpuAffinity_CheckedChanged"
-                     Unchecked="ChkEnableCpuAffinity_CheckedChanged"
+                     ToolTip="EverQuest will run on 4 CPU cores for better stability"
                      Style="{StaticResource MaterialDesignCheckBox}"/>
         </StackPanel>
 
