@@ -23,7 +23,8 @@ namespace THJPatcher
         public string Version { get; set; }
         public string LastIntegrityCheck { get; set; }  // ISO 8601 timestamp
         public string QuickCheckStatus { get; set; }    // success/failed
-        public string DeleteChangelog { get; set; }     // true/false        public string LastChangelogRefresh { get; set; } // ISO 8601 timestamp of last changelog refresh
+        public string DeleteChangelog { get; set; }     // true/false
+        public string LastChangelogRefresh { get; set; } // ISO 8601 timestamp of last changelog refresh
         public string ChangelogRefreshInterval { get; set; } // Number of days between automatic refreshes
         public string ChangelogRefreshValue { get; set; } // Used to trigger changelog refresh when value is changed
         public string EnableCpuAffinity { get; set; } // true/false - whether to limit CPU affinity for EverQuest
@@ -127,6 +128,10 @@ namespace THJPatcher
             if (instance.FileName == null) instance.FileName = "";
             if (instance.Version == null) instance.Version = "1.1.0";
             if (instance.LastPatchedVersion == null) instance.LastPatchedVersion = "";
+            if (instance.LastChangelogRefresh == null) instance.LastChangelogRefresh = "";
+            if (instance.ChangelogRefreshInterval == null) instance.ChangelogRefreshInterval = "7";
+            if (instance.ChangelogRefreshValue == null) instance.ChangelogRefreshValue = "";
+            if (instance.DeleteChangelog == null) instance.DeleteChangelog = "true";
             if (instance.EnableCpuAffinity == null) instance.EnableCpuAffinity = "false";
 
             Debug.WriteLine($"[DEBUG] Loaded LastPatchedVersion: {instance.LastPatchedVersion}");
@@ -155,10 +160,10 @@ namespace THJPatcher
             instance.AutoPatch = "false";
             instance.PatcherUrl = "";
             instance.FileName = "";
-            instance.Version = "1.1.0";
-            instance.LastPatchedVersion = "";
+            instance.Version = "1.1.0"; instance.LastPatchedVersion = "";
             instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");
-            instance.QuickCheckStatus = "success"; instance.DeleteChangelog = "true";
+            instance.QuickCheckStatus = "success";
+            instance.DeleteChangelog = "true";
             instance.LastChangelogRefresh = "";
             instance.ChangelogRefreshInterval = "7";
             instance.ChangelogRefreshValue = "";
