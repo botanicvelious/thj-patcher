@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "THJPatcher": {
+      "commandName": "Project",
+      "commandLineArgs": "--debug"
+    }
+  }
+}
