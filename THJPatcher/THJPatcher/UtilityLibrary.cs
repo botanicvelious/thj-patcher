@@ -31,7 +31,7 @@ namespace THJPatcher
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
         [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, 
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
             int X, int Y, int cx, int cy, uint uFlags);
 
         [DllImport("user32.dll")]
@@ -49,23 +49,28 @@ namespace THJPatcher
                 using (var stream = await response.Content.ReadAsStreamAsync())
                 {
                     var outPath = outFile.Replace("/", "\\");
-                    if (outFile.Contains("\\")) { //Make directory if needed.
+                    if (outFile.Contains("\\"))
+                    { //Make directory if needed.
                         string dir = System.IO.Path.GetDirectoryName(Application.ExecutablePath) + "\\" + outFile.Substring(0, outFile.LastIndexOf("\\"));
                         Directory.CreateDirectory(dir);
                     }
                     outPath = System.IO.Path.GetDirectoryName(Application.ExecutablePath) + "\\" + outFile;
 
-                    using (var w = File.Create(outPath)) {
+                    using (var w = File.Create(outPath))
+                    {
                         await stream.CopyToAsync(w, 81920, cts.Token);
                     }
                 }
-            } catch(ArgumentNullException e)
+            }
+            catch (ArgumentNullException e)
             {
                 return "ArgumentNullExpception: " + e.Message;
-            } catch(HttpRequestException e)
+            }
+            catch (HttpRequestException e)
             {
                 return "HttpRequestException: " + e.Message;
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 return "Exception: " + e.Message;
             }
@@ -138,15 +143,17 @@ namespace THJPatcher
                 if (IsIconic(process.MainWindowHandle))
                 {
                     ShowWindow(process.MainWindowHandle, SW_RESTORE);
-                }
-
-                // Force window to show properly
+                }                // Force window to show properly
                 ShowWindow(process.MainWindowHandle, SW_SHOW);
-                SetWindowPos(process.MainWindowHandle, IntPtr.Zero, 0, 0, 0, 0, 
+                SetWindowPos(process.MainWindowHandle, IntPtr.Zero, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             }
 
-            process.ProcessorAffinity = (IntPtr)0x000F;
+            // Apply CPU affinity if enabled
+            if (IniLibrary.instance.EnableCpuAffinity == "true")
+            {
+                process.ProcessorAffinity = (IntPtr)0x000F;
+            }
 
             return process;
         }
@@ -168,7 +175,7 @@ namespace THJPatcher
         {
             // get the absolute path
             var absPath = Path.GetFullPath(path);
-            var basePath = Path.GetDirectoryName(Application.ExecutablePath); 
+            var basePath = Path.GetDirectoryName(Application.ExecutablePath);
             // check if absPath contains basePath
             if (!absPath.Contains(basePath))
             {
@@ -180,7 +187,7 @@ namespace THJPatcher
             }
             return true;
         }
-        
+
         // MoveFileEx flags for scheduling file operations
         [Flags]
         public enum MoveFileFlags
@@ -190,11 +197,11 @@ namespace THJPatcher
             MOVEFILE_DELAY_UNTIL_REBOOT = 0x00000004,
             MOVEFILE_WRITE_THROUGH = 0x00000008
         }
-        
+
         // Import the MoveFileEx function from kernel32.dll
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, MoveFileFlags dwFlags);
-        
+
         // Wrapper method for MoveFileEx with a different name to avoid conflict
         public static bool ScheduleFileOperation(string existingFile, string newFile, MoveFileFlags flags)
         {

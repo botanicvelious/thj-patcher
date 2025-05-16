@@ -304,15 +304,22 @@
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
-                    Style="{StaticResource PatchButton}"/>
-
-            <Button x:Name="btnPlay"
+                    Style="{StaticResource PatchButton}"/>            <Button x:Name="btnPlay"
                     Content="PLAY"
                     Margin="0,10,0,0"
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
                     Style="{StaticResource PlayButton}"/>
+                    
+            <CheckBox x:Name="chkEnableCpuAffinity"
+                     Content="Enable CPU Affinity"
+                     Margin="0,10,0,0"
+                     Foreground="#FBE9A4"
+                     ToolTip="Limit EverQuest to 4 CPU cores for better stability"
+                     Checked="ChkEnableCpuAffinity_CheckedChanged"
+                     Unchecked="ChkEnableCpuAffinity_CheckedChanged"
+                     Style="{StaticResource MaterialDesignCheckBox}"/>
         </StackPanel>
 
         <!-- Main Content -->

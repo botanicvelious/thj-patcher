@@ -261,11 +261,12 @@ namespace THJPatcher
         public MainWindow()
         {
             InitializeComponent();
-            Loaded += MainWindow_Loaded;
-            btnPatch.Click += BtnPatch_Click;
+            Loaded += MainWindow_Loaded; btnPatch.Click += BtnPatch_Click;
             btnPlay.Click += BtnPlay_Click;
             chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
+            chkEnableCpuAffinity.Checked += ChkEnableCpuAffinity_CheckedChanged;
+            chkEnableCpuAffinity.Unchecked += ChkEnableCpuAffinity_CheckedChanged;
 
             // Add KeyDown event handler for Enter key
             this.KeyDown += MainWindow_KeyDown;
@@ -898,13 +899,13 @@ namespace THJPatcher
             else
             {
                 ShowAppropriateButtons();
-            }
-
-            // Load configuration
+            }            // Load configuration
             isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
+            bool enableCpuAffinity = (IniLibrary.instance.EnableCpuAffinity.ToLower() == "true");
             chkAutoPlay.IsChecked = isAutoPlay;
             chkAutoPatch.IsChecked = isAutoPatch;
+            chkEnableCpuAffinity.IsChecked = enableCpuAffinity;
 
             // If we're in auto-patch mode, start patching (but not for self-updates)
             if (isAutoPatch && !isNeedingSelfUpdate && !hasNewChangelogs && filesToDownload.Count > 0)
@@ -3468,6 +3469,15 @@ namespace THJPatcher
             }
 
             return false;
+        }
+
+        private void ChkEnableCpuAffinity_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            if (isLoading) return;
+            bool isEnabled = chkEnableCpuAffinity.IsChecked ?? false;
+            IniLibrary.instance.EnableCpuAffinity = isEnabled ? "true" : "false";
+            StatusLibrary.Log($"CPU Affinity {(isEnabled ? "enabled" : "disabled")} - EverQuest will{(isEnabled ? "" : " not")} be limited to 4 cores");
+            IniLibrary.Save();
         }
     }
 }
