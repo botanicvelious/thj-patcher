@@ -704,6 +704,13 @@ namespace THJPatcher
             // Load configuration first
             IniLibrary.Load();
 
+            // Set CPU affinity checkbox state immediately after loading configuration
+            bool enableCpuAffinity = (IniLibrary.instance.EnableCpuAffinity.ToLower() == "true");
+            Dispatcher.Invoke(() =>
+            {
+                chkEnableCpuAffinity.IsChecked = enableCpuAffinity;
+            });
+
             // Changelog wipe logic: bump changelogRefreshValue to '2' to trigger a one-time wipe for all users
             if (IniLibrary.instance.ChangelogRefreshValue != "2")
             {
@@ -902,10 +909,8 @@ namespace THJPatcher
             }            // Load configuration
             isAutoPlay = (IniLibrary.instance.AutoPlay.ToLower() == "true");
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
-            bool enableCpuAffinity = (IniLibrary.instance.EnableCpuAffinity.ToLower() == "true");
             chkAutoPlay.IsChecked = isAutoPlay;
             chkAutoPatch.IsChecked = isAutoPatch;
-            chkEnableCpuAffinity.IsChecked = enableCpuAffinity;
 
             // If we're in auto-patch mode, start patching (but not for self-updates)
             if (isAutoPatch && !isNeedingSelfUpdate && !hasNewChangelogs && filesToDownload.Count > 0)
@@ -3495,7 +3500,7 @@ namespace THJPatcher
             if (isLoading) return;
             bool isEnabled = chkEnableCpuAffinity.IsChecked ?? false;
             IniLibrary.instance.EnableCpuAffinity = isEnabled ? "true" : "false";
-            StatusLibrary.Log($"CPU Affinity {(isEnabled ? "enabled" : "disabled")}");
+            StatusLibrary.Log($"CPU Affinity {(isEnabled ? "enabled" : "disabled")} - EverQuest will{(isEnabled ? "" : " not")} run on 4 CPU cores for better stability");
             IniLibrary.Save();
         }
     }
