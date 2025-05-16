@@ -146,7 +146,7 @@ namespace THJPatcher
                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             }
 
-            process.ProcessorAffinity = (IntPtr)Environment.ProcessorCount;
+            process.ProcessorAffinity = (IntPtr)0x000F;
 
             return process;
         }
