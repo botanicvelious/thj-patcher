@@ -152,7 +152,17 @@ namespace THJPatcher
             // Apply CPU affinity if enabled
             if (IniLibrary.instance.EnableCpuAffinity == "true")
             {
+
+                int eqid = process.Id;
+
+                ProcessThreadCollection threads;
+                Process eqproc = Process.GetProcessById(eqid);
+
+                threads = eqproc.Threads;
+
                 process.ProcessorAffinity = (IntPtr)0x000F;
+                process.PriorityClass = ProcessPriorityClass.High;
+                threads[0].IdealProcessor = 0;
             }
 
             return process;
