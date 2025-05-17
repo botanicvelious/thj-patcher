@@ -251,6 +251,7 @@ namespace THJPatcher
 
                 Marshal.FreeHGlobal(ptr);
 
+                // if ecores exist replace pCores with eCores as pCores are 1 if eCores exist but 0 if they dont...
                 if (eCores.Count > 0)
                 {
                     pCores = eCores;
@@ -280,7 +281,7 @@ namespace THJPatcher
                 foreach (ProcessThread eqthreads in process.Threads)
                 {
                     eqthreads.IdealProcessor = index;
-                    if (index != Environment.ProcessorCount - 1)
+                    if (index != pCores.Count)
                     {
                         index++;
                     }
