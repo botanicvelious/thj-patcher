@@ -19,6 +19,47 @@ namespace THJPatcher
     /* General Utility Methods */
     public static class UtilityLibrary
     {
+        //System code to figure out if we have e-cores etc
+        [StructLayout(LayoutKind.Sequential)]
+        struct GROUP_AFFINITY
+        {
+            public ulong Mask;
+            public ushort Group;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
+            public ushort[] Reserved;
+        }
+
+        enum LOGICAL_PROCESSOR_RELATIONSHIP
+        {
+            RelationProcessorCore = 0,
+            RelationAll = 0xFFFF
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        struct PROCESSOR_RELATIONSHIP
+        {
+            public byte Flags;
+            public byte EfficiencyClass;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 20)]
+            public byte[] Reserved;
+            public ushort GroupCount;
+            public IntPtr GroupMask; // points to GROUP_AFFINITY[]
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX
+        {
+            public LOGICAL_PROCESSOR_RELATIONSHIP Relationship;
+            public int Size;
+            // Followed by union struct — we handle it manually
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool GetLogicalProcessorInformationEx(
+            LOGICAL_PROCESSOR_RELATIONSHIP RelationshipType,
+            IntPtr Buffer,
+            ref int ReturnedLength
+        );
+
         // Win32 constants for window management
         private const int SW_RESTORE = 9;
         private const int SW_SHOW = 5;
@@ -152,7 +193,104 @@ namespace THJPatcher
             // Apply CPU affinity if enabled
             if (IniLibrary.instance.EnableCpuAffinity == "true")
             {
-                process.ProcessorAffinity = (IntPtr)0x000F;
+                int length = 0;
+                GetLogicalProcessorInformationEx(LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore, IntPtr.Zero, ref length);
+                IntPtr ptr = Marshal.AllocHGlobal(length);
+
+                if (!GetLogicalProcessorInformationEx(LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore, ptr, ref length))
+                {
+                    Console.WriteLine("Failed to get processor info.");
+                }
+
+                IntPtr current = ptr;
+                IntPtr end = IntPtr.Add(ptr, length);
+
+                List<int> pCores = new List<int>();
+                List<int> eCores = new List<int>();
+                int coreIndex = 0;
+
+                while (current.ToInt64() < end.ToInt64())
+                {
+                    int structSize = Marshal.ReadInt32(current, 4);
+
+                    // Skip header to reach PROCESSOR_RELATIONSHIP
+                    IntPtr processorPtr = IntPtr.Add(current, Marshal.OffsetOf<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>("Size").ToInt32() + 4);
+                    PROCESSOR_RELATIONSHIP processor = Marshal.PtrToStructure<PROCESSOR_RELATIONSHIP>(processorPtr);
+
+                    // Interpret EfficiencyClass
+                    if (processor.EfficiencyClass == 0)
+                    {
+                        if (processor.Flags == 1)
+                        {
+                            pCores.Add(coreIndex);
+                            coreIndex++;
+                            pCores.Add(coreIndex);
+                        }
+                        else
+                        {
+                            pCores.Add(coreIndex);
+                        }
+                    }
+                    else
+                    {
+                        if (processor.Flags == 1)
+                        {
+                            eCores.Add(coreIndex);
+                            coreIndex++;
+                            eCores.Add(coreIndex);
+                        }
+                        else
+                        {
+                            eCores.Add(coreIndex);
+                        }
+                    }
+
+                    coreIndex++;
+                    current = IntPtr.Add(current, structSize);
+                }
+
+                Marshal.FreeHGlobal(ptr);
+
+                if (eCores.Count > 0)
+                {
+                    pCores = eCores;
+                }
+
+                Console.WriteLine("Performance Cores (P-Cores):");
+                foreach (var core in pCores)
+                    Console.WriteLine($"Core {core}");
+
+                Console.WriteLine("\nEfficiency Cores (E-Cores):");
+                foreach (var core in eCores)
+                    Console.WriteLine($"Core {core}");
+
+                int cores = 0;
+
+                foreach (int i in pCores)
+                {
+                    cores = cores + ((cores + 1));
+                    Console.WriteLine(cores);
+                }
+
+                process.ProcessorAffinity = (IntPtr)cores;
+                process.PriorityClass = ProcessPriorityClass.High;
+
+                // Set threads to be spread out and not switch cores
+                int index = 0;
+                foreach (ProcessThread eqthreads in process.Threads)
+                {
+                    eqthreads.IdealProcessor = index;
+                    if (index != Environment.ProcessorCount - 1)
+                    {
+                        index++;
+                    }
+                    else
+                    {
+                        index = 0;
+                    }
+
+                }
+
             }
 
             return process;
