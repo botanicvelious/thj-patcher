@@ -13,6 +13,8 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using Wpf.Ui.Controls;
 
 namespace THJPatcher
 {
@@ -128,34 +130,50 @@ namespace THJPatcher
                 WindowStyle = ProcessWindowStyle.Normal
             };
 
-            var process = System.Diagnostics.Process.Start(startInfo);
+            var eqprocess = System.Diagnostics.Process.Start(startInfo);
 
             // Wait for the window to be created (up to 10 seconds)
-            for (int i = 0; i < 20 && process.MainWindowHandle == IntPtr.Zero; i++)
+            for (int i = 0; i < 20 && eqprocess.MainWindowHandle == IntPtr.Zero; i++)
             {
                 Thread.Sleep(500);
-                process.Refresh();
+                eqprocess.Refresh();
             }
 
-            if (process.MainWindowHandle != IntPtr.Zero)
+            if (eqprocess.MainWindowHandle != IntPtr.Zero)
             {
                 // Ensure window is not minimized
-                if (IsIconic(process.MainWindowHandle))
+                if (IsIconic(eqprocess.MainWindowHandle))
                 {
-                    ShowWindow(process.MainWindowHandle, SW_RESTORE);
+                    ShowWindow(eqprocess.MainWindowHandle, SW_RESTORE);
                 }                // Force window to show properly
-                ShowWindow(process.MainWindowHandle, SW_SHOW);
-                SetWindowPos(process.MainWindowHandle, IntPtr.Zero, 0, 0, 0, 0,
+                ShowWindow(eqprocess.MainWindowHandle, SW_SHOW);
+                SetWindowPos(eqprocess.MainWindowHandle, IntPtr.Zero, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             }
 
             // Apply CPU affinity if enabled
             if (IniLibrary.instance.EnableCpuAffinity == "true")
             {
-                process.ProcessorAffinity = (IntPtr)0x000F;
+                eqprocess.ProcessorAffinity = (IntPtr)((1 << Environment.ProcessorCount) - 1);
+                eqprocess.PriorityClass = ProcessPriorityClass.High;
+
+                // Set threads to be spread out and not switch cores
+                int index = 0;
+                foreach (ProcessThread eqthreads in eqprocess.Threads)
+                {
+                    eqthreads.IdealProcessor = index;
+                    if (index != Environment.ProcessorCount -1)
+                    {
+                        index++;
+                    }
+                    else
+                    {
+                        index = 0;
+                    }
+                }
             }
 
-            return process;
+            return eqprocess;
         }
 
         //Pass the working directory (or later, you can pass another directory) and it returns a hash if the file is found
