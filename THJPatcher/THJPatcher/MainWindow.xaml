@@ -312,10 +312,10 @@
                     Visibility="Collapsed"
                     Style="{StaticResource PlayButton}"/>
                       <CheckBox x:Name="chkEnableCpuAffinity"
-                     Content="Enable CPU Affinity"
+                     Content="Enable CPU Optimizations"
                      Margin="0,10,0,0"
                      Foreground="#FBE9A4"
-                     ToolTip="EverQuest will run on 4 CPU cores for better stability"
+                     ToolTip="EverQuest will run on 4 CPU cores and set process priority for better stability"
                      Style="{StaticResource MaterialDesignCheckBox}"/>
         </StackPanel>
 
