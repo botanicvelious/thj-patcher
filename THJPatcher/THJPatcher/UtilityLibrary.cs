@@ -184,10 +184,18 @@ namespace THJPatcher
                 if (IsIconic(process.MainWindowHandle))
                 {
                     ShowWindow(process.MainWindowHandle, SW_RESTORE);
-                }                // Force window to show properly
+                }
+                // Force window to show properly
                 ShowWindow(process.MainWindowHandle, SW_SHOW);
                 SetWindowPos(process.MainWindowHandle, IntPtr.Zero, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+
+                // Hide the patcher application window
+                IntPtr patcherWindowHandle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
+                if (patcherWindowHandle != IntPtr.Zero)
+                {
+                    ShowWindow(patcherWindowHandle, 0);
+                }
             }
 
             // Apply CPU affinity if enabled
@@ -275,6 +283,9 @@ namespace THJPatcher
 
                 process.ProcessorAffinity = (IntPtr)cores;
                 process.PriorityClass = ProcessPriorityClass.High;
+
+                // Wait 60 seconds to assign threads
+                Thread.Sleep(60000);
 
                 // Set threads to be spread out and not switch cores
                 int index = 0;
