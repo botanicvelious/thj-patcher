@@ -27,6 +27,23 @@ namespace THJPatcher
                 string exeFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                 string themesFolder = Path.Combine(exeFolder, "themes");
 
+                // Blow up if eqgame.exe is missing
+                if (!File.Exists("eqgame.exe"))
+                {
+                    MessageBox.Show($"eqgame.exe is missing, did you forget to run the installer? Did you not run this file from your everquest directory?",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    if (System.Windows.Forms.Application.MessageLoop)
+                    {
+                        // WinForms app
+                        System.Windows.Forms.Application.Exit();
+                    }
+                    else
+                    {
+                        // Console app
+                        System.Environment.Exit(1);
+                    }
+                }
+
                 if (!Directory.Exists(themesFolder))
                 {
                     try
