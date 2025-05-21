@@ -3561,6 +3561,53 @@ namespace THJPatcher
                 var fileNames = new List<string>();
                 var clientPrefix = "rof/"; // Use hardcoded prefix since that's all we support
 
+                // Store the FileList object to process delete.txt later
+                FileList filelist = null;
+
+                // Get the filelist to process delete.txt
+                string suffix = "rof"; // Since we're only supporting RoF/RoF2
+                string webUrl = $"{filelistUrl}/filelist_{suffix}.yml";
+                string filelistResponse = await UtilityLibrary.DownloadFile(cts, webUrl, "filelist.yml");
+                if (filelistResponse != "")
+                {
+                    StatusLibrary.Log($"Failed to fetch filelist from {webUrl}: {filelistResponse}");
+                    return false;
+                }
+
+                // Parse the filelist
+                using (var input = await Task.Run(() => File.OpenText($"{Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath)}\\filelist.yml")))
+                {
+                    var deserializerBuilder = new DeserializerBuilder()
+                        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                        .Build();
+                    filelist = await Task.Run(() => deserializerBuilder.Deserialize<FileList>(input));
+                }
+
+                // Handle delete.txt if it exists
+                string deleteUrl = $"{filelist.downloadprefix}delete.txt";
+                try
+                {
+                    var deleteData = await UtilityLibrary.Download(cts, deleteUrl);
+                    if (deleteData != null && deleteData.Length > 0)
+                    {
+                        StatusLibrary.Log($"Checking for outdated files...");
+                        string deleteContent = System.Text.Encoding.UTF8.GetString(deleteData);
+                        var filesToDelete = deleteContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+                        if (filelist.deletes == null)
+                            filelist.deletes = new List<FileEntry>();
+
+                        foreach (var file in filesToDelete)
+                        {
+                            filelist.deletes.Add(new FileEntry { name = file.Trim() });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    StatusLibrary.Log($"[Warning] Failed to process delete.txt: {ex.Message}");
+                }
+
                 foreach (var file in filesToPatch)
                 {
                     string relativePath;
@@ -3617,7 +3664,9 @@ namespace THJPatcher
 
                     // Ensure we have a clean path
                     fileNames.Add(relativePath);
-                }                // DEBUG: Output the chunked patch file list to disk for Postman testing - only in debug mode
+                }
+
+                // DEBUG: Output the chunked patch file list to disk for Postman testing - only in debug mode
                 if (isDebugMode)
                 {
                     try
@@ -3639,7 +3688,8 @@ namespace THJPatcher
                 using (var client = new HttpClient())
                 using (var content = new StringContent(json, Encoding.UTF8, "application/json"))
                 {
-                    var response = await client.PostAsync("https://patch.heroesjourneyemu.com/zip-chunks/init", content); if (!response.IsSuccessStatusCode)
+                    var response = await client.PostAsync("https://patch.heroesjourneyemu.com/zip-chunks/init", content);
+                    if (!response.IsSuccessStatusCode)
                     {
                         StatusLibrary.Log($"Server returned error: {response.StatusCode}");
                         return false;
@@ -3677,6 +3727,7 @@ namespace THJPatcher
                         StatusLibrary.Log("No file chunks returned from server.");
                         return false;
                     }
+
                     StatusLibrary.Log($"Downloading {zipUrls.Count} file chunk(s)...");
                     int chunkNum = 1;
                     int totalFilesExtracted = 0;
@@ -3712,7 +3763,9 @@ namespace THJPatcher
                             if (isDebugMode)
                             {
                                 StatusLibrary.Log($"[ChunkedPatch][DEBUG] Downloading {zipUrl}");
-                            }                            // Show download started message with size info
+                            }
+
+                            // Show download started message with size info
                             using (var chunkResponse = await client.GetAsync(zipUrl, HttpCompletionOption.ResponseHeadersRead))
                             {
                                 chunkResponse.EnsureSuccessStatusCode();
@@ -3744,7 +3797,8 @@ namespace THJPatcher
                             {
                                 int filesExtracted = 0;
                                 int processedFiles = 0;
-                                int totalFiles = archive.Entries.Count; foreach (var entry in archive.Entries)
+                                int totalFiles = archive.Entries.Count;
+                                foreach (var entry in archive.Entries)
                                 {
                                     if (string.IsNullOrEmpty(entry.Name)) continue; // skip folders
 
@@ -3759,7 +3813,10 @@ namespace THJPatcher
 
                                     string outPath = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), destinationPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
                                     Directory.CreateDirectory(Path.GetDirectoryName(outPath));
-                                    entry.ExtractToFile(outPath, true);// Check if file is a map file or other special type that should have limited logging
+
+                                    entry.ExtractToFile(outPath, true);
+
+                                    // Check if file is a map file or other special type that should have limited logging
                                     bool isMapFile = entry.FullName.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
                                                  entry.FullName.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
                                                  entry.FullName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
@@ -3823,7 +3880,6 @@ namespace THJPatcher
                                 }
 
                                 totalFilesExtracted += filesExtracted;
-
                                 // Update UI for this chunk completion
                                 await Dispatcher.InvokeAsync(() =>
                                 {
@@ -3839,14 +3895,18 @@ namespace THJPatcher
                             try { File.Delete(tempZip); } catch { }
                         }
                         chunkNum++;
-                    }                    // After downloading map files, show a summary
+                    }
+
+                    // After downloading map files, show a summary
                     if (loggedMapFiles > maxLoggedMapFiles)
                     {
                         StatusLibrary.Log($"Installed a total of {loggedMapFiles} map files");
                     }
 
                     StatusLibrary.Log("All chunks downloaded and extracted.");
-                    StatusLibrary.Log($"Total files installed: {totalFilesExtracted}");                    // Add debug validation - verify that a sample of files actually exists on disk
+                    StatusLibrary.Log($"Total files installed: {totalFilesExtracted}");
+
+                    // Add debug validation - verify that a sample of files actually exists on disk
                     if (isDebugMode && fileNames.Count > 0)
                     {
                         StatusLibrary.Log("Fast patch verification - checking files...");
@@ -3875,6 +3935,40 @@ namespace THJPatcher
                         }
 
                         StatusLibrary.Log($"[ChunkedPatch][DEBUG] File verification: {verifiedCount} found, {failedCount} not found");
+                    }
+
+                    // Process file deletions if any exist in filelist.deletes
+                    if (filelist.deletes != null && filelist.deletes.Count > 0)
+                    {
+                        StatusLibrary.Log($"Processing {filelist.deletes.Count} file deletion(s)...");
+                        foreach (var entry in filelist.deletes)
+                        {
+                            if (isPatchCancelled)
+                            {
+                                StatusLibrary.Log("Patching cancelled.");
+                                return false;
+                            }
+
+                            var path = Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath) + "\\" + entry.name.Replace("/", "\\");
+                            if (!await Task.Run(() => UtilityLibrary.IsPathChild(path)))
+                            {
+                                StatusLibrary.Log($"[Warning] Path {entry.name} might be outside your EverQuest directory. Skipping deletion.");
+                                continue;
+                            }
+
+                            if (await Task.Run(() => File.Exists(path)))
+                            {
+                                try
+                                {
+                                    await Task.Run(() => File.Delete(path));
+                                    StatusLibrary.Log($"Deleted {entry.name}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    StatusLibrary.Log($"[Warning] Failed to delete {entry.name}: {ex.Message}");
+                                }
+                            }
+                        }
                     }
 
                     return true;
