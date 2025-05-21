@@ -24,6 +24,7 @@ using System.Windows.Data;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
+using System.IO.Compression;
 
 namespace THJPatcher
 {
@@ -214,6 +215,9 @@ namespace THJPatcher
         // Add a field to store the latest new changelogs for the modal window
         private List<ChangelogInfo> latestNewChangelogs = new List<ChangelogInfo>();
 
+        // Feature flag for chunked patching
+        private bool isChunkedPatchEnabled = false;
+
         private string FormatAuthorName(string author)
         {
             if (string.IsNullOrEmpty(author)) return "System";
@@ -267,6 +271,8 @@ namespace THJPatcher
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
             chkEnableCpuAffinity.Checked += ChkEnableCpuAffinity_CheckedChanged;
             chkEnableCpuAffinity.Unchecked += ChkEnableCpuAffinity_CheckedChanged;
+            chkEnableChunkedPatch.Checked += ChkEnableChunkedPatch_CheckedChanged;
+            chkEnableChunkedPatch.Unchecked += ChkEnableChunkedPatch_CheckedChanged;
 
             // Add KeyDown event handler for Enter key
             this.KeyDown += MainWindow_KeyDown;
@@ -327,7 +333,8 @@ namespace THJPatcher
 
             fileName = "heroesjourneyemu";
 
-            filelistUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/";
+            // SWAP: Make patch.heroesjourneyemu.com the primary, GitHub the backup
+            filelistUrl = "https://patch.heroesjourneyemu.com";
             if (string.IsNullOrEmpty(filelistUrl))
             {
                 MessageBox.Show("This patcher was built incorrectly. Please contact the distributor of this and inform them the file list url is not provided or screenshot this message.", serverName);
@@ -944,7 +951,8 @@ namespace THJPatcher
 
                 // Download the filelist to get the latest dinput8.dll MD5
                 string suffix = "rof";
-                string primaryUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download";
+                string primaryUrl = filelistUrl;
+                string fallbackUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download";
                 string webUrl = $"{primaryUrl}/filelist_{suffix}.yml";
                 string filelistResponse = "";
 
@@ -982,7 +990,6 @@ namespace THJPatcher
                 if (string.IsNullOrEmpty(filelistResponse))
                 {
                     // Try fallback URL with timeout
-                    string fallbackUrl = "https://patch.heroesjourneyemu.com";
                     webUrl = $"{fallbackUrl}/filelist_{suffix}.yml";
 
                     try
@@ -1634,6 +1641,34 @@ namespace THJPatcher
                 StatusLibrary.Log($"Using {filesToDownload.Count} previously identified files that need updating.");
             }
 
+            // --- CHUNKED PATCHING INTEGRATION ---
+            if (isChunkedPatchEnabled)
+            {
+                StatusLibrary.Log($"[ChunkedPatch] Experimental fast patching enabled. Attempting chunked patch for {filesToDownload.Count} files.");
+                if (filesToDownload.Count > 0)
+                {
+                    // Show a preview of the first few files for debug/logging
+                    var previewFiles = string.Join(", ", filesToDownload.Take(5).Select(f => f.name));
+                    StatusLibrary.Log($"[ChunkedPatch] First files: {previewFiles}{(filesToDownload.Count > 5 ? ", ..." : "")}");
+                }
+                // Pass the download prefix to TryChunkedPatch
+                bool chunkedSuccess = await TryChunkedPatch(filesToDownload, filelist.downloadprefix);
+                if (chunkedSuccess)
+                {
+                    StatusLibrary.Log("[ChunkedPatch] Fast patch complete! Skipping per-file patching.");
+                    StatusLibrary.SetProgress(10000);
+                    // Optionally, update LastPatchedVersion and save config here if needed
+                    IniLibrary.instance.LastPatchedVersion = filelist.version;
+                    IniLibrary.instance.Version = version;
+                    await Task.Run(() => IniLibrary.Save());
+                    return;
+                }
+                else
+                {
+                    StatusLibrary.Log("[ChunkedPatch] Fast patch failed or incomplete. Falling back to normal patching...");
+                }
+            }
+
             // Calculate total patch size for downloads
             double totalBytes = await Task.Run(() =>
             {
@@ -1932,15 +1967,15 @@ namespace THJPatcher
 
                 while (!downloadSuccess && retryCount < maxRetries)
                 {
-                    // Try backup URL first since we know files exist there
-                    string backupUrl = "https://patch.heroesjourneyemu.com/rof/" + entry.name.Replace("\\", "/");
-                    string response = await UtilityLibrary.DownloadFile(cts, backupUrl, entry.name);
+                    // Try primary URL first
+                    string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
+                    string response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
 
-                    // If backup fails, try primary URL
+                    // If primary fails, try backup URL
                     if (response != "")
                     {
-                        string url = filelist.downloadprefix + entry.name.Replace("\\", "/");
-                        response = await UtilityLibrary.DownloadFile(cts, url, entry.name);
+                        string backupUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download/rof/" + entry.name.Replace("\\", "/");
+                        response = await UtilityLibrary.DownloadFile(cts, backupUrl, entry.name);
                         if (response != "")
                         {
                             if (shouldLogFile)
@@ -2895,7 +2930,7 @@ namespace THJPatcher
             // Download and parse the filelist
             string suffix = "rof";
             string primaryUrl = filelistUrl;
-            string fallbackUrl = "https://patch.heroesjourneyemu.com";
+            string fallbackUrl = "https://github.com/The-Heroes-Journey-EQEMU/eqemupatcher/releases/latest/download";
             string webUrl = $"{primaryUrl}/filelist_{suffix}.yml";
             string filelistResponse = "";
 
@@ -3502,6 +3537,343 @@ namespace THJPatcher
             IniLibrary.instance.EnableCpuAffinity = isEnabled ? "true" : "false";
             StatusLibrary.Log($"CPU Affinity {(isEnabled ? "enabled" : "disabled")} - EverQuest will{(isEnabled ? "" : " not")} run on 4 CPU cores for better stability");
             IniLibrary.Save();
+        }
+        private void ChkEnableChunkedPatch_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            if (isLoading) return;
+            isChunkedPatchEnabled = chkEnableChunkedPatch.IsChecked ?? false;
+
+            if (isChunkedPatchEnabled)
+            {
+                // Show styled popup warning
+                CustomWarningBox.Show(
+                    "This is an experimental feature, use with the knowledge that not everything might patch.",
+                    "Experimental Feature"
+                );
+            }
+
+            StatusLibrary.Log($"Chunked patching is {(isChunkedPatchEnabled ? "ENABLED" : "DISABLED")}. This is experimental!");
+        }
+
+        private async Task<bool> TryChunkedPatch(List<FileEntry> filesToPatch, string prefix)
+        {
+            try
+            {
+                StatusLibrary.Log("[ChunkedPatch] Requesting chunked patch from server...");
+                // Normalize file names for chunked patching - create clean "rof/file.txt" format paths
+                var fileNames = new List<string>();
+                var clientPrefix = "rof/"; // Use hardcoded prefix since that's all we support
+
+                foreach (var file in filesToPatch)
+                {
+                    string relativePath;
+                    string name = file.name.Replace("\\", "/");
+
+                    // Handle full GitHub URLs
+                    if (name.Contains("github.com") && name.Contains("/master/"))
+                    {
+                        int masterIndex = name.IndexOf("/master/");
+                        if (masterIndex > 0)
+                        {
+                            // Extract everything after "/master/"
+                            relativePath = name.Substring(masterIndex + "/master/".Length);
+                        }
+                        else
+                        {
+                            // Fallback to just the filename if we can't find the pattern
+                            relativePath = Path.GetFileName(name);
+                        }
+                    }
+                    // Handle other URLs
+                    else if (name.StartsWith("http://") || name.StartsWith("https://"))
+                    {
+                        var uri = new Uri(name);
+                        relativePath = uri.AbsolutePath.TrimStart('/');
+                        // If the path already contains the prefix, extract just the relevant part
+                        if (relativePath.Contains("rof/"))
+                        {
+                            int rofIndex = relativePath.IndexOf("rof/");
+                            relativePath = relativePath.Substring(rofIndex);
+                        }
+                        else
+                        {
+                            // Just the filename as last resort
+                            relativePath = Path.GetFileName(relativePath);
+                        }
+                    }
+                    else
+                    {
+                        // Strip any leading slashes
+                        relativePath = name.TrimStart('/');
+                    }
+
+                    // Don't duplicate prefixes - remove "rof/" if it exists at the start
+                    if (relativePath.StartsWith("rof/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Keep it as is
+                    }
+                    else
+                    {
+                        // Add the prefix
+                        relativePath = clientPrefix + relativePath;
+                    }
+
+                    // Ensure we have a clean path
+                    fileNames.Add(relativePath);
+                }
+
+                // DEBUG: Output the chunked patch file list to disk for Postman testing
+                try
+                {
+                    var debugFileList = fileNames.Take(1000).ToList(); // Limit to 1000 for sanity
+                    var debugJson = System.Text.Json.JsonSerializer.Serialize(new { files = debugFileList }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                    var debugPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "chunked_patch_filelist.json");
+                    System.IO.File.WriteAllText(debugPath, debugJson);
+                    StatusLibrary.Log($"[ChunkedPatch] Wrote debug file list for Postman: {debugPath}");
+                }
+                catch (Exception ex)
+                {
+                    StatusLibrary.Log($"[ChunkedPatch] Failed to write debug file list: {ex.Message}");
+                }
+
+                var requestBody = new { files = fileNames };
+                var json = System.Text.Json.JsonSerializer.Serialize(requestBody);
+                using (var client = new HttpClient())
+                using (var content = new StringContent(json, Encoding.UTF8, "application/json"))
+                {
+                    var response = await client.PostAsync("https://patch.heroesjourneyemu.com/zip-chunks/init", content);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        StatusLibrary.Log($"[ChunkedPatch] Server returned error: {response.StatusCode}");
+                        return false;
+                    }
+                    var respString = await response.Content.ReadAsStringAsync();
+                    // Parse the response as a JSON object with a "chunks" array
+                    using var doc = System.Text.Json.JsonDocument.Parse(respString);
+                    var root = doc.RootElement;
+                    if (!root.TryGetProperty("chunks", out var chunksElem) || chunksElem.ValueKind != System.Text.Json.JsonValueKind.Array)
+                    {
+                        StatusLibrary.Log("[ChunkedPatch] No 'chunks' array in server response.");
+                        StatusLibrary.Log($"[ChunkedPatch] Full server response: {respString}");
+                        return false;
+                    }
+                    var zipUrls = new List<string>();
+                    foreach (var chunk in chunksElem.EnumerateArray())
+                    {
+                        if (chunk.TryGetProperty("url", out var urlElem))
+                        {
+                            var url = urlElem.GetString();
+                            if (!string.IsNullOrEmpty(url))
+                            {
+                                // Prepend base URL if needed
+                                if (url.StartsWith("/"))
+                                    url = "https://patch.heroesjourneyemu.com" + url;
+                                zipUrls.Add(url);
+                            }
+                        }
+                    }
+                    if (zipUrls.Count == 0)
+                    {
+                        StatusLibrary.Log("[ChunkedPatch] No zip chunks returned from server.");
+                        return false;
+                    }
+                    StatusLibrary.Log($"[ChunkedPatch] Downloading {zipUrls.Count} zip chunk(s)...");
+                    int chunkNum = 1;
+                    int totalFilesExtracted = 0;
+
+                    // Show progress bar for chunked patching
+                    Dispatcher.Invoke(() =>
+                    {
+                        progressBar.Visibility = Visibility.Visible;
+                        txtProgress.Visibility = Visibility.Visible;
+                        progressBar.Value = 0;
+                        txtProgress.Text = "0%";
+                    });
+
+                    // Variables to limit the number of map files logged (similar to regular patching)
+                    int loggedMapFiles = 0;
+                    const int maxLoggedMapFiles = 20;
+
+                    foreach (var zipUrl in zipUrls)
+                    {
+                        if (isPatchCancelled) return false;
+
+                        // User-friendly progress message for all users
+                        StatusLibrary.Log($"Downloading chunk {chunkNum} of {zipUrls.Count}...");
+
+                        // Update progress bar
+                        int progressPercent = (int)((double)chunkNum / zipUrls.Count * 100);
+                        StatusLibrary.SetProgress(progressPercent * 100); // Convert to 0-10000 range
+
+                        string tempZip = Path.GetTempFileName();
+                        try
+                        {
+                            // Debug-only detailed logging
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[ChunkedPatch][DEBUG] Downloading {zipUrl}");
+                            }                            // Show download started message with size info
+                            using (var chunkResponse = await client.GetAsync(zipUrl, HttpCompletionOption.ResponseHeadersRead))
+                            {
+                                chunkResponse.EnsureSuccessStatusCode();
+
+                                // Get file size if available
+                                long? totalBytes = chunkResponse.Content.Headers.ContentLength;
+                                string sizeInfo = totalBytes.HasValue ? $" ({generateSize(totalBytes.Value)})" : "";
+
+                                if (!isDebugMode)
+                                {
+                                    StatusLibrary.Log($"Downloading chunk {chunkNum}/{zipUrls.Count}{sizeInfo}...");
+                                }
+                                using (var zipData = await chunkResponse.Content.ReadAsStreamAsync())
+                                using (var fs = File.Create(tempZip))
+                                {
+                                    await zipData.CopyToAsync(fs);
+                                }
+                            }
+
+                            // User-friendly extraction message
+                            StatusLibrary.Log($"Extracting files from chunk {chunkNum} of {zipUrls.Count}...");
+
+                            if (isDebugMode)
+                            {
+                                StatusLibrary.Log($"[ChunkedPatch][DEBUG] Extracting chunk {chunkNum}...");
+                            }
+
+                            using (var archive = ZipFile.OpenRead(tempZip))
+                            {
+                                int filesExtracted = 0;
+                                int processedFiles = 0;
+                                int totalFiles = archive.Entries.Count;
+
+                                foreach (var entry in archive.Entries)
+                                {
+                                    if (string.IsNullOrEmpty(entry.Name)) continue; // skip folders
+
+                                    processedFiles++;
+                                    string outPath = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), entry.FullName.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                                    Directory.CreateDirectory(Path.GetDirectoryName(outPath));
+                                    entry.ExtractToFile(outPath, true);
+
+                                    // Check if file is a map file or other special type that should have limited logging
+                                    bool isMapFile = entry.FullName.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
+                                                 entry.FullName.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
+                                                 entry.FullName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+
+                                    bool shouldLogFile = !isMapFile || (isMapFile && loggedMapFiles < maxLoggedMapFiles);
+
+                                    // Debug-only detailed path logging
+                                    if (isDebugMode && filesExtracted <= 3) // Only log first few files in debug mode
+                                    {
+                                        StatusLibrary.Log($"[ChunkedPatch][DEBUG] Extracted: {entry.FullName} -> {outPath}");
+                                    }
+                                    // Standard file logging similar to regular patching
+                                    else if (shouldLogFile && !isDebugMode)
+                                    {
+                                        // Get the size of the extracted file
+                                        long fileSize = new FileInfo(outPath).Length;
+                                        StatusLibrary.Log($"{entry.FullName} ({generateSize(fileSize)})");
+                                    }
+
+                                    if (isMapFile)
+                                    {
+                                        loggedMapFiles++;
+
+                                        // For map files, only log messages periodically
+                                        if (loggedMapFiles == maxLoggedMapFiles)
+                                        {
+                                            StatusLibrary.Log("Additional map files are being installed...");
+                                        }
+                                        else if (loggedMapFiles % 50 == 0 && loggedMapFiles > maxLoggedMapFiles)
+                                        {
+                                            StatusLibrary.Log($"Installed {loggedMapFiles} map files so far");
+
+                                            // Make sure UI is updated
+                                            await Dispatcher.InvokeAsync(() =>
+                                            {
+                                                if (autoScroll)
+                                                {
+                                                    txtLog.ScrollToEnd();
+                                                }
+                                            });
+                                        }
+                                    }
+
+                                    // Every 20 files for non-map files, provide a summary
+                                    if (!isMapFile && processedFiles % 20 == 0)
+                                    {
+                                        StatusLibrary.Log($"Progress: {processedFiles}/{totalFiles} files processed in chunk {chunkNum} ({(int)(processedFiles * 100.0 / totalFiles)}%)");
+                                    }
+
+                                    filesExtracted++;
+                                }
+
+                                totalFilesExtracted += filesExtracted;
+
+                                // Update UI for this chunk completion
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    if (autoScroll)
+                                    {
+                                        txtLog.ScrollToEnd();
+                                    }
+                                });
+                            }
+                        }
+                        finally
+                        {
+                            try { File.Delete(tempZip); } catch { }
+                        }
+                        chunkNum++;
+                    }
+
+                    // After downloading map files, show a summary
+                    if (loggedMapFiles > maxLoggedMapFiles)
+                    {
+                        StatusLibrary.Log($"Installed a total of {loggedMapFiles} map files");
+                    }
+
+                    StatusLibrary.Log("[ChunkedPatch] All chunks downloaded and extracted.");
+                    StatusLibrary.Log($"[ChunkedPatch] Total files extracted: {totalFilesExtracted}");
+
+                    // Add debug validation - verify that a sample of files actually exists on disk
+                    if (isDebugMode && fileNames.Count > 0)
+                    {
+                        StatusLibrary.Log("[ChunkedPatch][DEBUG] Verifying extracted files...");
+                        int verifiedCount = 0;
+                        int failedCount = 0;
+
+                        // Check first 5 files at most for validation
+                        foreach (var sampleFile in fileNames.Take(5))
+                        {
+                            string localPath = sampleFile;
+                            if (localPath.StartsWith("rof/"))
+                                localPath = localPath.Substring(4); // Remove "rof/" prefix
+
+                            string outPath = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), localPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                            if (File.Exists(outPath))
+                            {
+                                verifiedCount++;
+                                StatusLibrary.Log($"[ChunkedPatch][DEBUG] Verified file: {outPath}");
+                            }
+                            else
+                            {
+                                failedCount++;
+                                StatusLibrary.Log($"[ChunkedPatch][DEBUG] File not found: {outPath}");
+                            }
+                        }
+
+                        StatusLibrary.Log($"[ChunkedPatch][DEBUG] File verification: {verifiedCount} found, {failedCount} not found");
+                    }
+
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[ChunkedPatch] Error: {ex.Message}");
+                return false;
+            }
         }
     }
 }
