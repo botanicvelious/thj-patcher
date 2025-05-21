@@ -1639,23 +1639,21 @@ namespace THJPatcher
             else
             {
                 StatusLibrary.Log($"Using {filesToDownload.Count} previously identified files that need updating.");
-            }
-
-            // --- CHUNKED PATCHING INTEGRATION ---
+            }            // --- CHUNKED PATCHING INTEGRATION ---
             if (isChunkedPatchEnabled)
             {
-                StatusLibrary.Log($"[ChunkedPatch] Experimental fast patching enabled. Attempting chunked patch for {filesToDownload.Count} files.");
+                StatusLibrary.Log($"Fast patching enabled. Attempting to download {filesToDownload.Count} files in chunks...");
                 if (filesToDownload.Count > 0)
                 {
                     // Show a preview of the first few files for debug/logging
                     var previewFiles = string.Join(", ", filesToDownload.Take(5).Select(f => f.name));
-                    StatusLibrary.Log($"[ChunkedPatch] First files: {previewFiles}{(filesToDownload.Count > 5 ? ", ..." : "")}");
+                    StatusLibrary.Log($"Files to patch: {previewFiles}{(filesToDownload.Count > 5 ? ", ..." : "")}");
                 }
                 // Pass the download prefix to TryChunkedPatch
                 bool chunkedSuccess = await TryChunkedPatch(filesToDownload, filelist.downloadprefix);
                 if (chunkedSuccess)
                 {
-                    StatusLibrary.Log("[ChunkedPatch] Fast patch complete! Skipping per-file patching.");
+                    StatusLibrary.Log("Fast patch complete! Skipping per-file patching.");
                     StatusLibrary.SetProgress(10000);
                     // Optionally, update LastPatchedVersion and save config here if needed
                     IniLibrary.instance.LastPatchedVersion = filelist.version;
@@ -1665,7 +1663,7 @@ namespace THJPatcher
                 }
                 else
                 {
-                    StatusLibrary.Log("[ChunkedPatch] Fast patch failed or incomplete. Falling back to normal patching...");
+                    StatusLibrary.Log("Fast patch failed or incomplete. Falling back to normal patching...");
                 }
             }
 
@@ -3554,12 +3552,11 @@ namespace THJPatcher
 
             StatusLibrary.Log($"Chunked patching is {(isChunkedPatchEnabled ? "ENABLED" : "DISABLED")}. This is experimental!");
         }
-
         private async Task<bool> TryChunkedPatch(List<FileEntry> filesToPatch, string prefix)
         {
             try
             {
-                StatusLibrary.Log("[ChunkedPatch] Requesting chunked patch from server...");
+                StatusLibrary.Log("Requesting file list from server...");
                 // Normalize file names for chunked patching - create clean "rof/file.txt" format paths
                 var fileNames = new List<string>();
                 var clientPrefix = "rof/"; // Use hardcoded prefix since that's all we support
@@ -3620,20 +3617,21 @@ namespace THJPatcher
 
                     // Ensure we have a clean path
                     fileNames.Add(relativePath);
-                }
-
-                // DEBUG: Output the chunked patch file list to disk for Postman testing
-                try
+                }                // DEBUG: Output the chunked patch file list to disk for Postman testing - only in debug mode
+                if (isDebugMode)
                 {
-                    var debugFileList = fileNames.Take(1000).ToList(); // Limit to 1000 for sanity
-                    var debugJson = System.Text.Json.JsonSerializer.Serialize(new { files = debugFileList }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                    var debugPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "chunked_patch_filelist.json");
-                    System.IO.File.WriteAllText(debugPath, debugJson);
-                    StatusLibrary.Log($"[ChunkedPatch] Wrote debug file list for Postman: {debugPath}");
-                }
-                catch (Exception ex)
-                {
-                    StatusLibrary.Log($"[ChunkedPatch] Failed to write debug file list: {ex.Message}");
+                    try
+                    {
+                        var debugFileList = fileNames.Take(1000).ToList(); // Limit to 1000 for sanity
+                        var debugJson = System.Text.Json.JsonSerializer.Serialize(new { files = debugFileList }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                        var debugPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "chunked_patch_filelist.json");
+                        System.IO.File.WriteAllText(debugPath, debugJson);
+                        StatusLibrary.Log($"[DEBUG] Wrote debug file list for Postman: {debugPath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[DEBUG] Failed to write debug file list: {ex.Message}");
+                    }
                 }
 
                 var requestBody = new { files = fileNames };
@@ -3641,10 +3639,9 @@ namespace THJPatcher
                 using (var client = new HttpClient())
                 using (var content = new StringContent(json, Encoding.UTF8, "application/json"))
                 {
-                    var response = await client.PostAsync("https://patch.heroesjourneyemu.com/zip-chunks/init", content);
-                    if (!response.IsSuccessStatusCode)
+                    var response = await client.PostAsync("https://patch.heroesjourneyemu.com/zip-chunks/init", content); if (!response.IsSuccessStatusCode)
                     {
-                        StatusLibrary.Log($"[ChunkedPatch] Server returned error: {response.StatusCode}");
+                        StatusLibrary.Log($"Server returned error: {response.StatusCode}");
                         return false;
                     }
                     var respString = await response.Content.ReadAsStringAsync();
@@ -3653,8 +3650,11 @@ namespace THJPatcher
                     var root = doc.RootElement;
                     if (!root.TryGetProperty("chunks", out var chunksElem) || chunksElem.ValueKind != System.Text.Json.JsonValueKind.Array)
                     {
-                        StatusLibrary.Log("[ChunkedPatch] No 'chunks' array in server response.");
-                        StatusLibrary.Log($"[ChunkedPatch] Full server response: {respString}");
+                        StatusLibrary.Log("No chunks array in server response.");
+                        if (isDebugMode)
+                        {
+                            StatusLibrary.Log($"[DEBUG] Full server response: {respString}");
+                        }
                         return false;
                     }
                     var zipUrls = new List<string>();
@@ -3674,10 +3674,10 @@ namespace THJPatcher
                     }
                     if (zipUrls.Count == 0)
                     {
-                        StatusLibrary.Log("[ChunkedPatch] No zip chunks returned from server.");
+                        StatusLibrary.Log("No file chunks returned from server.");
                         return false;
                     }
-                    StatusLibrary.Log($"[ChunkedPatch] Downloading {zipUrls.Count} zip chunk(s)...");
+                    StatusLibrary.Log($"Downloading {zipUrls.Count} file chunk(s)...");
                     int chunkNum = 1;
                     int totalFilesExtracted = 0;
 
@@ -3744,28 +3744,42 @@ namespace THJPatcher
                             {
                                 int filesExtracted = 0;
                                 int processedFiles = 0;
-                                int totalFiles = archive.Entries.Count;
-
-                                foreach (var entry in archive.Entries)
+                                int totalFiles = archive.Entries.Count; foreach (var entry in archive.Entries)
                                 {
                                     if (string.IsNullOrEmpty(entry.Name)) continue; // skip folders
 
                                     processedFiles++;
-                                    string outPath = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), entry.FullName.Replace("/", Path.DirectorySeparatorChar.ToString()));
-                                    Directory.CreateDirectory(Path.GetDirectoryName(outPath));
-                                    entry.ExtractToFile(outPath, true);
 
-                                    // Check if file is a map file or other special type that should have limited logging
+                                    // Strip the "rof/" prefix from the entry path for extraction
+                                    string destinationPath = entry.FullName;
+                                    if (destinationPath.StartsWith("rof/", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        destinationPath = destinationPath.Substring(4); // Remove "rof/" prefix
+                                    }
+
+                                    string outPath = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), destinationPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                                    Directory.CreateDirectory(Path.GetDirectoryName(outPath));
+                                    entry.ExtractToFile(outPath, true);// Check if file is a map file or other special type that should have limited logging
                                     bool isMapFile = entry.FullName.StartsWith("maps/", StringComparison.OrdinalIgnoreCase) ||
                                                  entry.FullName.StartsWith("maps\\", StringComparison.OrdinalIgnoreCase) ||
                                                  entry.FullName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
 
                                     bool shouldLogFile = !isMapFile || (isMapFile && loggedMapFiles < maxLoggedMapFiles);
 
+                                    // Verify the file was properly extracted by checking the file exists
+                                    if (!File.Exists(outPath))
+                                    {
+                                        if (isDebugMode)
+                                        {
+                                            StatusLibrary.Log($"[DEBUG] Failed to extract: {entry.FullName}");
+                                        }
+                                        continue;
+                                    }
+
                                     // Debug-only detailed path logging
                                     if (isDebugMode && filesExtracted <= 3) // Only log first few files in debug mode
                                     {
-                                        StatusLibrary.Log($"[ChunkedPatch][DEBUG] Extracted: {entry.FullName} -> {outPath}");
+                                        StatusLibrary.Log($"[DEBUG] Extracted: {entry.FullName} -> {outPath}");
                                     }
                                     // Standard file logging similar to regular patching
                                     else if (shouldLogFile && !isDebugMode)
@@ -3825,41 +3839,38 @@ namespace THJPatcher
                             try { File.Delete(tempZip); } catch { }
                         }
                         chunkNum++;
-                    }
-
-                    // After downloading map files, show a summary
+                    }                    // After downloading map files, show a summary
                     if (loggedMapFiles > maxLoggedMapFiles)
                     {
                         StatusLibrary.Log($"Installed a total of {loggedMapFiles} map files");
                     }
 
-                    StatusLibrary.Log("[ChunkedPatch] All chunks downloaded and extracted.");
-                    StatusLibrary.Log($"[ChunkedPatch] Total files extracted: {totalFilesExtracted}");
-
-                    // Add debug validation - verify that a sample of files actually exists on disk
+                    StatusLibrary.Log("All chunks downloaded and extracted.");
+                    StatusLibrary.Log($"Total files installed: {totalFilesExtracted}");                    // Add debug validation - verify that a sample of files actually exists on disk
                     if (isDebugMode && fileNames.Count > 0)
                     {
-                        StatusLibrary.Log("[ChunkedPatch][DEBUG] Verifying extracted files...");
+                        StatusLibrary.Log("Fast patch verification - checking files...");
                         int verifiedCount = 0;
                         int failedCount = 0;
 
                         // Check first 5 files at most for validation
                         foreach (var sampleFile in fileNames.Take(5))
                         {
+                            // Always strip the rof/ prefix since files get installed to root
                             string localPath = sampleFile;
-                            if (localPath.StartsWith("rof/"))
+                            if (localPath.StartsWith("rof/", StringComparison.OrdinalIgnoreCase))
                                 localPath = localPath.Substring(4); // Remove "rof/" prefix
 
                             string outPath = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), localPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
                             if (File.Exists(outPath))
                             {
                                 verifiedCount++;
-                                StatusLibrary.Log($"[ChunkedPatch][DEBUG] Verified file: {outPath}");
+                                StatusLibrary.Log($"Verified file: {Path.GetFileName(outPath)}");
                             }
                             else
                             {
                                 failedCount++;
-                                StatusLibrary.Log($"[ChunkedPatch][DEBUG] File not found: {outPath}");
+                                StatusLibrary.Log($"File not found: {Path.GetFileName(outPath)}");
                             }
                         }
 
