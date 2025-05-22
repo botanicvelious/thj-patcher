@@ -77,14 +77,19 @@
   <ItemGroup>
     <PackageReference Include="Costura.Fody" />
     <PackageReference Include="Fody" />
+    <PackageReference Include="HtmlAgilityPack" />
     <PackageReference Include="LibGit2Sharp" />
     <PackageReference Include="LibGit2Sharp.NativeBinaries" />
+    <PackageReference Include="Markdig" />
     <PackageReference Include="MaterialDesignThemes" />
     <PackageReference Include="MaterialDesignColors" />
     <PackageReference Include="Microsoft.CSharp" />
     <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" />
     <PackageReference Include="System.Data.DataSetExtensions" />
     <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="MdXaml" />
+    <PackageReference Include="WPF-UI" />
+    <PackageReference Include="WPF-UI.Markdown" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="SolutionInfo.cs" />
@@ -117,6 +122,11 @@
   <ItemGroup>
     <Resource Include="Resources\rof.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="CustomMarkdownTheme.xaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Resource>
   </ItemGroup>
   <ItemGroup>

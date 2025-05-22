@@ -27,6 +27,9 @@ namespace THJPatcher
                 string exeFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                 string themesFolder = Path.Combine(exeFolder, "themes");
 
+                
+                
+
                 if (!Directory.Exists(themesFolder))
                 {
                     try

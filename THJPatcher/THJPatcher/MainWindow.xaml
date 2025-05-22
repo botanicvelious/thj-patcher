@@ -236,21 +236,6 @@
                     </Button.IsEnabled>
                 </Button>
                 
-                <Button Content="THJDI Item Search"
-                        Width="160"
-                        Height="40"
-                        Margin="0,0,0,10"
-                        Style="{StaticResource GoldButton}"
-                        Click="LinkButton_Click"
-                        Tag="https://www.thjdi.cc/">
-                    <Button.IsEnabled>
-                        <MultiBinding Converter="{StaticResource BooleanOrConverter}">
-                            <Binding ElementName="btnPlay" Path="IsVisible"/>
-                            <Binding ElementName="btnPatch" Path="IsVisible"/>
-                        </MultiBinding>
-                    </Button.IsEnabled>
-                </Button>
-                
                 <Button Content="EQDB Item Search"
                         Width="160"
                         Height="40"
@@ -319,15 +304,18 @@
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
-                    Style="{StaticResource PatchButton}"/>
-
-            <Button x:Name="btnPlay"
+                    Style="{StaticResource PatchButton}"/>            <Button x:Name="btnPlay"
                     Content="PLAY"
                     Margin="0,10,0,0"
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
-                    Style="{StaticResource PlayButton}"/>
+                    Style="{StaticResource PlayButton}"/>                      <CheckBox x:Name="chkEnableCpuAffinity"
+                     Content="Enable CPU Optimizations"
+                     Margin="0,10,0,0"
+                     Foreground="#FBE9A4"
+                     ToolTip="EverQuest will run on all CPU cores and set process priority for better performance."
+                     Style="{StaticResource MaterialDesignCheckBox}"/>
         </StackPanel>
 
         <!-- Main Content -->
@@ -509,6 +497,21 @@
                                     Style="{StaticResource GoldButton}"
                                     Click="PatcherChangelog_Click"
                                     ToolTip="View changes made to the patcher application"/>
+                                      <Button x:Name="btnRefreshChangelogs"
+                                    Content="Refresh Changelogs"
+                                    Width="180"
+                                    Height="40"
+                                    Margin="8"
+                                    Style="{StaticResource GoldButton}"
+                                    Click="RefreshChangelogs_Click"
+                                    ToolTip="Set the patcher to refresh game changelogs on next run"/>
+                                    
+                            <CheckBox x:Name="chkEnableChunkedPatch"
+                                    Content="Enable Fast Patch"
+                                    Margin="8"
+                                    Foreground="#FBE9A4"
+                                    ToolTip="Use new chunked patching for much faster downloads. This is experimental."
+                                    Style="{StaticResource MaterialDesignCheckBox}"/>
 
                             <!-- Add more buttons here -->
                         </WrapPanel>
