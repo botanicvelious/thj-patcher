@@ -24,10 +24,10 @@ namespace THJPatcher
         public string LastIntegrityCheck { get; set; }  // ISO 8601 timestamp
         public string QuickCheckStatus { get; set; }    // success/failed
         public string DeleteChangelog { get; set; }     // true/false
-        public string LastChangelogRefresh { get; set; } // ISO 8601 timestamp of last changelog refresh
-        public string ChangelogRefreshInterval { get; set; } // Number of days between automatic refreshes
+        public string LastChangelogRefresh { get; set; } // ISO 8601 timestamp of last changelog refresh        public string ChangelogRefreshInterval { get; set; } // Number of days between automatic refreshes
         public string ChangelogRefreshValue { get; set; } // Used to trigger changelog refresh when value is changed
         public string EnableCpuAffinity { get; set; } // true/false - whether to limit CPU affinity for EverQuest
+        public string UseSingleFilePatch { get; set; } // true/false - whether to use single file patching instead of chunked patching
 
         private static string GetConfigPath()
         {
@@ -128,11 +128,11 @@ namespace THJPatcher
             if (instance.FileName == null) instance.FileName = "";
             if (instance.Version == null) instance.Version = "1.1.0";
             if (instance.LastPatchedVersion == null) instance.LastPatchedVersion = "";
-            if (instance.LastChangelogRefresh == null) instance.LastChangelogRefresh = "";
-            if (instance.ChangelogRefreshInterval == null) instance.ChangelogRefreshInterval = "7";
+            if (instance.LastChangelogRefresh == null) instance.LastChangelogRefresh = ""; if (instance.ChangelogRefreshInterval == null) instance.ChangelogRefreshInterval = "7";
             if (instance.ChangelogRefreshValue == null) instance.ChangelogRefreshValue = "";
             if (instance.DeleteChangelog == null) instance.DeleteChangelog = "true";
             if (instance.EnableCpuAffinity == null) instance.EnableCpuAffinity = "false";
+            if (instance.UseSingleFilePatch == null) instance.UseSingleFilePatch = "false";
 
             Debug.WriteLine($"[DEBUG] Loaded LastPatchedVersion: {instance.LastPatchedVersion}");
 
@@ -154,11 +154,11 @@ namespace THJPatcher
 
         public static void ResetDefaults()
         {
-            Debug.WriteLine($"[DEBUG] Resetting to default values");
-            instance = new IniLibrary();
+            Debug.WriteLine($"[DEBUG] Resetting to default values"); instance = new IniLibrary();
             instance.AutoPlay = "false";
             instance.AutoPatch = "false";
             instance.PatcherUrl = "";
+            instance.UseSingleFilePatch = "false";
             instance.FileName = "";
             instance.Version = "1.1.0"; instance.LastPatchedVersion = "";
             instance.LastIntegrityCheck = DateTime.UtcNow.ToString("O");

@@ -505,12 +505,11 @@
                                     Style="{StaticResource GoldButton}"
                                     Click="RefreshChangelogs_Click"
                                     ToolTip="Set the patcher to refresh game changelogs on next run"/>
-                                    
-                            <CheckBox x:Name="chkEnableChunkedPatch"
-                                    Content="Enable Fast Patch"
+                                      <CheckBox x:Name="chkEnableChunkedPatch"
+                                    Content="Use Single File Patching"
                                     Margin="8"
                                     Foreground="#FBE9A4"
-                                    ToolTip="Use new chunked patching for much faster downloads. This is experimental."
+                                    ToolTip="Use traditional single file patching instead of faster chunk-based patching."
                                     Style="{StaticResource MaterialDesignCheckBox}"/>
 
                             <!-- Add more buttons here -->

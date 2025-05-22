@@ -216,7 +216,7 @@ namespace THJPatcher
         private List<ChangelogInfo> latestNewChangelogs = new List<ChangelogInfo>();
 
         // Feature flag for chunked patching
-        private bool isChunkedPatchEnabled = false;
+        private bool isChunkedPatchEnabled = true; // Default to chunked patching (opposite of UseSingleFilePatch)
 
         private string FormatAuthorName(string author)
         {
@@ -918,6 +918,12 @@ namespace THJPatcher
             isAutoPatch = (IniLibrary.instance.AutoPatch.ToLower() == "true");
             chkAutoPlay.IsChecked = isAutoPlay;
             chkAutoPatch.IsChecked = isAutoPatch;
+
+            // Initialize chunked patching checkbox - checked when single file patching is enabled
+            bool useSingleFilePatch = (IniLibrary.instance.UseSingleFilePatch.ToLower() == "true");
+            chkEnableChunkedPatch.IsChecked = useSingleFilePatch; // Checkbox is for "Use Single File Patching"
+            isChunkedPatchEnabled = !useSingleFilePatch; // Flag is the inverse (true = use chunked patching)
+            StatusLibrary.Log($"Using {(isChunkedPatchEnabled ? "chunked" : "single file")} patching method. {(isChunkedPatchEnabled ? "(faster)" : "(slower)")}");
 
             // If we're in auto-patch mode, start patching (but not for self-updates)
             if (isAutoPatch && !isNeedingSelfUpdate && !hasNewChangelogs && filesToDownload.Count > 0)
@@ -1653,7 +1659,7 @@ namespace THJPatcher
                 bool chunkedSuccess = await TryChunkedPatch(filesToDownload, filelist.downloadprefix);
                 if (chunkedSuccess)
                 {
-                    StatusLibrary.Log("Fast patch complete! Skipping per-file patching.");
+                    StatusLibrary.Log("Patching Complete!");
                     StatusLibrary.SetProgress(10000);
                     // Optionally, update LastPatchedVersion and save config here if needed
                     IniLibrary.instance.LastPatchedVersion = filelist.version;
@@ -3539,18 +3545,23 @@ namespace THJPatcher
         private void ChkEnableChunkedPatch_CheckedChanged(object sender, RoutedEventArgs e)
         {
             if (isLoading) return;
-            isChunkedPatchEnabled = chkEnableChunkedPatch.IsChecked ?? false;
+            // Invert logic: checkbox checked means "Use Single File Patching" (disable chunked patching)
+            isChunkedPatchEnabled = !(chkEnableChunkedPatch.IsChecked ?? false);
 
-            if (isChunkedPatchEnabled)
+            // Update the INI setting
+            IniLibrary.instance.UseSingleFilePatch = !isChunkedPatchEnabled ? "true" : "false";
+            IniLibrary.Save();
+
+            if (chkEnableChunkedPatch.IsChecked ?? false)
             {
-                // Show styled popup warning
+                // Show warning when selecting single file patching (slower method)
                 CustomWarningBox.Show(
-                    "This is an experimental feature, use with the knowledge that not everything might patch.",
-                    "Experimental Feature"
+                    "Single file patching is slower and not recommended for most users. Only use this option if you experience issues with the default chunked patching method.",
+                    "Performance Warning"
                 );
             }
 
-            StatusLibrary.Log($"Chunked patching is {(isChunkedPatchEnabled ? "ENABLED" : "DISABLED")}. This is experimental!");
+            StatusLibrary.Log($"Using {(!isChunkedPatchEnabled ? "single file" : "chunked")} patching method. {(!isChunkedPatchEnabled ? "(slower)" : "(faster)")}");
         }
         private async Task<bool> TryChunkedPatch(List<FileEntry> filesToPatch, string prefix)
         {
