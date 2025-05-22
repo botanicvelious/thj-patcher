@@ -3951,7 +3951,7 @@ namespace THJPatcher
                     // Process file deletions if any exist in filelist.deletes
                     if (filelist.deletes != null && filelist.deletes.Count > 0)
                     {
-                        StatusLibrary.Log($"Processing {filelist.deletes.Count} file deletion(s)...");
+                        StatusLibrary.Log($"Checking for any file deletions...");
                         foreach (var entry in filelist.deletes)
                         {
                             if (isPatchCancelled)
