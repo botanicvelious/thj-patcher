@@ -280,9 +280,7 @@
                             <Binding ElementName="btnPatch" Path="IsVisible"/>
                         </MultiBinding>
                     </Button.IsEnabled>
-                </Button>
-
-                <Button x:Name="btnOptimizations"
+                </Button>                <Button x:Name="btnOptimizations"
                         Content="Extras"
                         Width="160"
                         Height="40"
@@ -296,21 +294,30 @@
                         </MultiBinding>
                     </Button.IsEnabled>
                 </Button>
-            </StackPanel>            <Button x:Name="btnPatch"
+                
+                <Button x:Name="btnLogParser"
+                        Content="THJ Log Parser"
+                        Width="160"
+                        Height="40"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource GoldButton}"
+                        Click="BtnLogParser_Click">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{StaticResource BooleanOrConverter}">
+                            <Binding ElementName="btnPlay" Path="IsVisible"/>
+                            <Binding ElementName="btnPatch" Path="IsVisible"/>
+                        </MultiBinding>
+                    </Button.IsEnabled>
+                </Button>
+            </StackPanel>            
+            
+            <Button x:Name="btnPatch"
                     Content="PATCH"
                     Margin="0,10,0,0"
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
                     Style="{StaticResource PatchButton}"/>
-                    
-            <Button x:Name="btnLogParser"
-                    Content="THJ LOG PARSER"
-                    Margin="0,10,0,0"
-                    Width="160"
-                    Height="40"
-                    Click="BtnLogParser_Click"
-                    Style="{StaticResource GoldButton}"/>
                     
             <Button x:Name="btnPlay"
                     Content="PLAY"
