@@ -4068,6 +4068,7 @@ namespace THJPatcher
             string parserDir = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "THJ Log Parser");
             string parserExe = Path.Combine(parserDir, "THJLogParser.exe");
             string readmeFile = Path.Combine(parserDir, "readme.txt");
+            string changelogFile = Path.Combine(parserDir, "CHANGELOG.md");
 
             // Ensure directory exists
             if (!Directory.Exists(parserDir))
@@ -4090,6 +4091,8 @@ namespace THJPatcher
                 string downloadUrl = null;
                 string md5Url = null;
                 string readmeUrl = null;
+                string changelogUrl = null;
+                string changelogMd5Url = null;
 
                 foreach (var asset in assets.EnumerateArray())
                 {
@@ -4100,6 +4103,10 @@ namespace THJPatcher
                         md5Url = asset.GetProperty("browser_download_url").GetString();
                     else if (name.Equals("readme.txt", StringComparison.OrdinalIgnoreCase))
                         readmeUrl = asset.GetProperty("browser_download_url").GetString();
+                    else if (name.Equals("CHANGELOG.md", StringComparison.OrdinalIgnoreCase))
+                        changelogUrl = asset.GetProperty("browser_download_url").GetString();
+                    else if (name.Equals("CHANGELOG.md.md5", StringComparison.OrdinalIgnoreCase))
+                        changelogMd5Url = asset.GetProperty("browser_download_url").GetString();
                 }
 
                 if (downloadUrl == null || md5Url == null)
@@ -4108,7 +4115,7 @@ namespace THJPatcher
                     return;
                 }
 
-                // Download the .md5 file
+                // Download the .md5 file for the executable
                 string remoteMd5 = null;
                 try
                 {
@@ -4148,7 +4155,66 @@ namespace THJPatcher
                 else
                 {
                     StatusLibrary.Log("THJLogParser.exe is up to date.");
-                }                // Download readme.txt only if it doesn't exist locally
+                }
+
+                // Handle the CHANGELOG.md file with MD5 verification
+                if (changelogUrl != null && changelogMd5Url != null)
+                {
+                    // Download the changelog MD5
+                    string changelogRemoteMd5;
+                    try
+                    {
+                        changelogRemoteMd5 = (await client.GetStringAsync(changelogMd5Url)).Trim().ToLowerInvariant();
+
+                        // Check if local changelog exists and compare MD5
+                        bool needsChangelogDownload = true;
+                        if (File.Exists(changelogFile))
+                        {
+                            try
+                            {
+                                string localChangelogMd5 = GetMD5(changelogFile);
+                                if (localChangelogMd5 == changelogRemoteMd5)
+                                {
+                                    needsChangelogDownload = false;
+                                    if (isDebugMode)
+                                    {
+                                        StatusLibrary.Log("[LogParser] CHANGELOG.md is up to date.");
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                needsChangelogDownload = true;
+                            }
+                        }
+
+                        if (needsChangelogDownload)
+                        {
+                            try
+                            {
+                                var changelogContent = await client.GetStringAsync(changelogUrl);
+                                await File.WriteAllTextAsync(changelogFile, changelogContent);
+                                StatusLibrary.Log("[LogParser] CHANGELOG.md updated.");
+                            }
+                            catch (Exception ex)
+                            {
+                                StatusLibrary.Log($"[LogParser] Failed to download CHANGELOG.md: {ex.Message}");
+                                // Continue execution even if changelog download fails
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[LogParser] Failed to verify CHANGELOG.md: {ex.Message}");
+                        // Continue execution even if MD5 verification fails
+                    }
+                }
+                else if (isDebugMode)
+                {
+                    StatusLibrary.Log("[LogParser] CHANGELOG.md or its MD5 file not found in release assets.");
+                }
+
+                // Download readme.txt only if it doesn't exist locally
                 if (readmeUrl != null && !File.Exists(readmeFile))
                 {
                     try
