@@ -1435,7 +1435,7 @@ namespace THJPatcher
             if (!isDebugMode && myHash != "" && isNeedingSelfUpdate)
             {
                 StatusLibrary.Log("Downloading patcher update...");
-                string url = $"{patcherUrl}/{fileName}.exe";
+                string url = $"{patcherUrl}{fileName}.exe";
                 try
                 {
                     var data = await Task.Run(async () => await UtilityLibrary.Download(cts, url));
@@ -1468,18 +1468,66 @@ namespace THJPatcher
                         return;
                     }
 
-                    // If we get here, the new patcher is valid
-                    // Delete the old backup if it exists
+                    // If we get here, the new patcher is valid                    // Delete the old backup if it exists
                     if (File.Exists(localExePath + ".old"))
                     {
-                        await Task.Run(() => File.Delete(localExePath + ".old"));
+                        try
+                        {
+                            await Task.Run(() => File.Delete(localExePath + ".old"));
+                        }
+                        catch (Exception ex)
+                        {
+                            StatusLibrary.Log($"Warning: Could not delete old backup file: {ex.Message}");
+                            // Continue anyway - we'll try to handle this gracefully
+                        }
                     }
 
                     // Move the current patcher to .old
-                    await Task.Run(() => File.Move(localExePath, localExePath + ".old"));
+                    try
+                    {
+                        await Task.Run(() => File.Move(localExePath, localExePath + ".old"));
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"Could not move current patcher to backup: {ex.Message}");
+                        // Try to use a different name for the backup
+                        string uniqueBackup = localExePath + $".old_{DateTime.Now.Ticks}";
+                        try
+                        {
+                            await Task.Run(() => File.Move(localExePath, uniqueBackup));
+                            StatusLibrary.Log("Used alternative backup file name.");
+                        }
+                        catch
+                        {
+                            StatusLibrary.Log("Could not create backup. Attempting direct replacement.");
+                            // If we can't create a backup, we'll try to overwrite the file directly
+                        }
+                    }                    // Move the temp file to the final location
+                    try
+                    {
+                        await Task.Run(() => File.Move(tempExePath, localExePath));
+                    }
+                    catch (Exception ex)
+                    {
+                        // The file might be in use or write-protected
+                        StatusLibrary.Log($"Could not move new patcher to final location: {ex.Message}");
 
-                    // Move the temp file to the final location
-                    await Task.Run(() => File.Move(tempExePath, localExePath));
+                        try
+                        {
+                            // Try to force replace the file by using Copy instead of Move
+                            await Task.Run(() => File.Copy(tempExePath, localExePath, true));
+                            StatusLibrary.Log("Forced file replacement succeeded.");
+
+                            // Clean up the temp file
+                            try { File.Delete(tempExePath); } catch { /* Ignore error here */ }
+                        }
+                        catch (Exception copyEx)
+                        {
+                            StatusLibrary.Log($"Critical error during patcher update: {copyEx.Message}");
+                            StatusLibrary.Log("Please download the latest patcher manually from GitHub.");
+                            throw; // Rethrow to trigger the outer catch block
+                        }
+                    }
 
                     // Check for a patcher_changelog.md file in the local directory
                     string localChangelogPath = Path.Combine(Path.GetDirectoryName(localExePath), "patcher_changelog.md");
