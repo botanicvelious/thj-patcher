@@ -4092,35 +4092,36 @@ namespace THJPatcher
 
                 if (needsDownload)
                 {
-                    StatusLibrary.Log("[LogParser] Downloading latest THJLogParser.exe...");
+                    StatusLibrary.Log("Downloading latest THJLogParser.exe...");
                     var exeBytes = await client.GetByteArrayAsync(downloadUrl);
                     await File.WriteAllBytesAsync(parserExe, exeBytes);
-                    StatusLibrary.Log("[LogParser] THJLogParser.exe updated.");
+                    StatusLibrary.Log("THJLogParser.exe updated.");
                 }
                 else
                 {
-                    StatusLibrary.Log("[LogParser] THJLogParser.exe is up to date.");
-                }
-
-                // Download readme.txt if available (no MD5 verification needed)
-                if (readmeUrl != null)
+                    StatusLibrary.Log("THJLogParser.exe is up to date.");
+                }                // Download readme.txt only if it doesn't exist locally
+                if (readmeUrl != null && !File.Exists(readmeFile))
                 {
                     try
                     {
-                        StatusLibrary.Log("[LogParser] Downloading readme.txt...");
                         var readmeContent = await client.GetStringAsync(readmeUrl);
                         await File.WriteAllTextAsync(readmeFile, readmeContent);
-                        StatusLibrary.Log("[LogParser] readme.txt downloaded.");
                     }
                     catch (Exception ex)
                     {
-                        StatusLibrary.Log($"[LogParser] Failed to download readme.txt: {ex.Message}");
                         // Continue execution even if readme download fails
                     }
                 }
+                else if (readmeUrl == null)
+                {
+                }
                 else
                 {
-                    StatusLibrary.Log("[LogParser] No readme.txt found in release.");
+                    // File already exists, no need to download
+                    if (isDebugMode)
+                    {
+                    }
                 }
             }
         }
