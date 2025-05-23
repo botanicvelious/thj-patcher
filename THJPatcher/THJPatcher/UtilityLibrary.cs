@@ -284,8 +284,8 @@ namespace THJPatcher
                 process.ProcessorAffinity = (IntPtr)cores;
                 process.PriorityClass = ProcessPriorityClass.High;
 
-                // Wait 60 seconds to assign threads
-                Thread.Sleep(60000);
+                // Wait 60 seconds to assign threads (Removed for now)
+                //Thread.Sleep(60000);
 
                 // Set threads to be spread out and not switch cores
                 int index = 0;
