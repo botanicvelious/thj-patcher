@@ -190,10 +190,9 @@
                     Margin="75,-270,0,0">
             
             <!-- Links Section -->
-            <StackPanel Margin="0,0,0,0">
-                <Button Content="THJ Website"
-                        Width="160"
-                        Height="40"
+            <StackPanel Margin="0,0,0,0">                <Button Content="THJ Website"
+                        Width="144"
+                        Height="36"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
@@ -205,10 +204,9 @@
                         </MultiBinding>
                     </Button.IsEnabled>
                 </Button>
-                
-                <Button Content="Create an Account"
-                        Width="160"
-                        Height="40"
+                  <Button Content="Create an Account"
+                        Width="144"
+                        Height="36"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
@@ -220,10 +218,9 @@
                         </MultiBinding>
                     </Button.IsEnabled>
                 </Button>
-                
-                <Button Content="THJ Wiki"
-                        Width="160"
-                        Height="40"
+                  <Button Content="THJ Wiki"
+                        Width="144"
+                        Height="36"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
@@ -235,10 +232,9 @@
                         </MultiBinding>
                     </Button.IsEnabled>
                 </Button>
-                
-                <Button Content="EQDB Item Search"
-                        Width="160"
-                        Height="40"
+                  <Button Content="EQDB Item Search"
+                        Width="144"
+                        Height="36"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
@@ -249,11 +245,9 @@
                             <Binding ElementName="btnPatch" Path="IsVisible"/>
                         </MultiBinding>
                     </Button.IsEnabled>
-                </Button>
-
-                <Button Content="DirectX 9"
-                        Width="160"
-                        Height="40"
+                </Button>                <Button Content="DirectX 9"
+                        Width="144"
+                        Height="36"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="LinkButton_Click"
@@ -265,12 +259,10 @@
                             <Binding ElementName="btnPatch" Path="IsVisible"/>
                         </MultiBinding>
                     </Button.IsEnabled>
-                </Button>
-
-                <Button x:Name="btnChangelog"
+                </Button>                <Button x:Name="btnChangelog"
                         Content="Changelog"
-                        Width="160"
-                        Height="40"
+                        Width="144"
+                        Height="36"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="ChangelogButton_Click">
@@ -282,8 +274,8 @@
                     </Button.IsEnabled>
                 </Button>                <Button x:Name="btnOptimizations"
                         Content="Extras"
-                        Width="160"
-                        Height="40"
+                        Width="144"
+                        Height="36"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="OptimizationsButton_Click">
@@ -294,11 +286,10 @@
                         </MultiBinding>
                     </Button.IsEnabled>
                 </Button>
-                
-                <Button x:Name="btnLogParser"
+                  <Button x:Name="btnLogParser"
                         Content="THJ Log Parser"
-                        Width="160"
-                        Height="40"
+                        Width="144"
+                        Height="36"
                         Margin="0,0,0,10"
                         Style="{StaticResource GoldButton}"
                         Click="BtnLogParser_Click">
@@ -310,20 +301,18 @@
                     </Button.IsEnabled>
                 </Button>
             </StackPanel>            
-            
-            <Button x:Name="btnPatch"
+              <Button x:Name="btnPatch"
                     Content="PATCH"
                     Margin="0,10,0,0"
-                    Width="160"
-                    Height="40"
+                    Width="144"
+                    Height="36"
                     Visibility="Collapsed"
                     Style="{StaticResource PatchButton}"/>
-                    
-            <Button x:Name="btnPlay"
+                      <Button x:Name="btnPlay"
                     Content="PLAY"
                     Margin="0,10,0,0"
-                    Width="160"
-                    Height="40"
+                    Width="144"
+                    Height="36"
                     Visibility="Collapsed"
                     Style="{StaticResource PlayButton}"/>                      <CheckBox x:Name="chkEnableCpuAffinity"
                      Content="Enable CPU Optimizations"
@@ -427,95 +416,79 @@
                     </Button>
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                 Margin="0,40,0,0">
-                        <WrapPanel Orientation="Horizontal" Margin="8">
-                            <Button x:Name="btnOpenFolder"
+                        <WrapPanel Orientation="Horizontal" Margin="8">                            <Button x:Name="btnOpenFolder"
                                     Content="Open THJ Folder"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="OpenFolder_Click"
-                                    ToolTip="Opens the folder where THJ is installed"/>
-
-                            <Button x:Name="btn4GBPatch"
+                                    ToolTip="Opens the folder where THJ is installed"/>                            <Button x:Name="btn4GBPatch"
                                     Content="4GB Patch"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="Apply4GBPatch_Click"
-                                    ToolTip="Enables EverQuest to use up to 4GB of RAM on 64-bit systems. Creates a backup of the original file before patching."/>
-
-                            <Button x:Name="btnFixUIScale"
+                                    ToolTip="Enables EverQuest to use up to 4GB of RAM on 64-bit systems. Creates a backup of the original file before patching."/>                            <Button x:Name="btnFixUIScale"
                                     Content="Fix UI Scale"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="FixUIScale_Click"
                                     Visibility="Collapsed"
-                                    ToolTip="Sets UI Scale to 1.0 in eqclient.ini"/>
-
-                            <Button x:Name="btnOptimizeGraphics"
+                                    ToolTip="Sets UI Scale to 1.0 in eqclient.ini"/>                            <Button x:Name="btnOptimizeGraphics"
                                     Content="Optimize Graphics"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="OptimizeGraphics_Click"
                                     Visibility="Collapsed"
-                                    ToolTip="Applies recommended graphics settings for better performance"/>
-
-                            <Button x:Name="btnClearCache"
+                                    ToolTip="Applies recommended graphics settings for better performance"/>                            <Button x:Name="btnClearCache"
                                     Content="Clear Cache"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="ClearCache_Click"
                                     Visibility="Collapsed"
-                                    ToolTip="Clears map and database cache files"/>
-
-                            <Button x:Name="btnResetSettings"
+                                    ToolTip="Clears map and database cache files"/>                            <Button x:Name="btnResetSettings"
                                     Content="Reset Settings"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="ResetSettings_Click"
                                     Visibility="Collapsed"
                                     ToolTip="Deletes all EverQuest configuration files. They will be recreated with defaults when you next launch the game."/>
-                                    
-                            <Button x:Name="btnFileIntegrityScan"
+                                      <Button x:Name="btnFileIntegrityScan"
                                     Content="File Integrity Scan"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="FileIntegrityScan_Click"
                                     ToolTip="Performs a complete file integrity scan to verify all game files are intact."/>
-                                    
-                            <Button x:Name="btnMemoryOptimizations"
+                                      <Button x:Name="btnMemoryOptimizations"
                                     Content="Memory Optimizations"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="MemoryOptimizations_Click"
-                                    ToolTip="Apply memory optimizations to EverQuest settings"/>
-
-                            <Button x:Name="btnPatcherChangelog"
+                                    ToolTip="Apply memory optimizations to EverQuest settings"/>                            <Button x:Name="btnPatcherChangelog"
                                     Content="Patcher Changelog"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="PatcherChangelog_Click"
-                                    ToolTip="View changes made to the patcher application"/>
-                                      <Button x:Name="btnRefreshChangelogs"
+                                    ToolTip="View changes made to the patcher application"/>                                      <Button x:Name="btnRefreshChangelogs"
                                     Content="Refresh Changelogs"
-                                    Width="180"
-                                    Height="40"
+                                    Width="162"
+                                    Height="36"
                                     Margin="8"
                                     Style="{StaticResource GoldButton}"
                                     Click="RefreshChangelogs_Click"
