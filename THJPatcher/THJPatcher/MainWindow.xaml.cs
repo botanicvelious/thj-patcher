@@ -261,12 +261,12 @@ namespace THJPatcher
             }
             return formattedLogs.ToString();
         }
-
         public MainWindow()
         {
             InitializeComponent();
             Loaded += MainWindow_Loaded; btnPatch.Click += BtnPatch_Click;
             btnPlay.Click += BtnPlay_Click;
+            btnLogParser.Click += BtnLogParser_Click;
             chkAutoPatch.Checked += ChkAutoPatch_CheckedChanged;
             chkAutoPlay.Checked += ChkAutoPlay_CheckedChanged;
             chkEnableCpuAffinity.Checked += ChkEnableCpuAffinity_CheckedChanged;
@@ -2907,6 +2907,46 @@ namespace THJPatcher
                 {
                     MessageBox.Show($"An error occurred while trying to start Everquest: {err.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
+            }
+        }
+
+        private void BtnLogParser_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string parserDir = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "THJ Log Parser");
+                string parserExe = Path.Combine(parserDir, "THJLogParser.exe");
+
+                if (!File.Exists(parserExe))
+                {
+                    StatusLibrary.Log("THJLogParser.exe not found. Running update check...");
+
+                    // Run the update checker and wait for it to complete
+                    Task.Run(async () => await EnsureLatestLogParserAsync()).Wait();
+
+                    // Check again if the file exists after the update
+                    if (!File.Exists(parserExe))
+                    {
+                        MessageBox.Show("Could not find the THJ Log Parser executable. Please restart the patcher and try again.",
+                            "Log Parser Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                }
+
+                // Launch the Log Parser
+                StatusLibrary.Log("Launching THJ Log Parser...");
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = parserExe,
+                    WorkingDirectory = parserDir,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                StatusLibrary.Log($"[LogParser] Error launching Log Parser: {ex.Message}");
+                MessageBox.Show($"Error launching THJ Log Parser: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

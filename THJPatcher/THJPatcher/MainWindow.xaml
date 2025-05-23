@@ -296,15 +296,23 @@
                         </MultiBinding>
                     </Button.IsEnabled>
                 </Button>
-            </StackPanel>
-
-            <Button x:Name="btnPatch"
+            </StackPanel>            <Button x:Name="btnPatch"
                     Content="PATCH"
                     Margin="0,10,0,0"
                     Width="160"
                     Height="40"
                     Visibility="Collapsed"
-                    Style="{StaticResource PatchButton}"/>            <Button x:Name="btnPlay"
+                    Style="{StaticResource PatchButton}"/>
+                    
+            <Button x:Name="btnLogParser"
+                    Content="THJ LOG PARSER"
+                    Margin="0,10,0,0"
+                    Width="160"
+                    Height="40"
+                    Click="BtnLogParser_Click"
+                    Style="{StaticResource GoldButton}"/>
+                    
+            <Button x:Name="btnPlay"
                     Content="PLAY"
                     Margin="0,10,0,0"
                     Width="160"
