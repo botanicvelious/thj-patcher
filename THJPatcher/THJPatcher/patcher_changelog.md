@@ -14,6 +14,15 @@
 - Implemented MD5 verification for CHANGELOG.md file
 - Added launcher for THJLogParser.exe utility
 
+## Bug Fixes
+
+- Fixed timeout issues when downloading THJLogParser.exe by increasing HTTP client timeout from 100 seconds to 5 minutes
+- Added improved error handling for network issues during downloads
+- Added more detailed error messages for download failures
+- Fixed critical error where download failures could crash the application
+- Improved resilience by continuing operation even when network errors occur
+- Added global exception handling to ensure log parser updates never interrupt the main program flow
+
 ---
 
 # May 22, 2025
