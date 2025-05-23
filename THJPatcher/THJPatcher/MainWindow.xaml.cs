@@ -711,6 +711,16 @@ namespace THJPatcher
             // Load configuration first
             IniLibrary.Load();
 
+            // Check for eqgame.exe in the root folder
+            string eqExePath = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "eqgame.exe");
+            if (!File.Exists(eqExePath))
+            {
+                CustomWarningBox.Show(
+                    "eqgame.exe is missing, did you forget to run the installer? Did you not run this file from your EverQuest directory?",
+                    "Missing eqgame.exe"
+                );
+            }
+
             // Set CPU affinity checkbox state immediately after loading configuration
             bool enableCpuAffinity = (IniLibrary.instance.EnableCpuAffinity.ToLower() == "true");
             Dispatcher.Invoke(() =>
@@ -796,6 +806,9 @@ namespace THJPatcher
 
         private async Task CompleteInitialization()
         {
+            // Ensure the THJ Log Parser is present and up-to-date before any patching or file checks
+            await EnsureLatestLogParserAsync();
+
             // Clear any existing download list to start fresh
             filesToDownload.Clear();
 
@@ -3989,6 +4002,126 @@ namespace THJPatcher
             {
                 StatusLibrary.Log($"[ChunkedPatch] Error: {ex.Message}");
                 return false;
+            }
+        }
+
+        private static string GetMD5(string filePath)
+        {
+            using (var md5 = System.Security.Cryptography.MD5.Create())
+            using (var stream = File.OpenRead(filePath))
+            {
+                var hash = md5.ComputeHash(stream);
+                return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+            }
+        }
+
+        private async Task EnsureLatestLogParserAsync()
+        {
+            string parserDir = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath), "THJ Log Parser");
+            string parserExe = Path.Combine(parserDir, "THJLogParser.exe");
+            string readmeFile = Path.Combine(parserDir, "readme.txt");
+
+            // Ensure directory exists
+            if (!Directory.Exists(parserDir))
+                Directory.CreateDirectory(parserDir);
+
+            // Get latest release info from GitHub API
+            string apiUrl = "https://api.github.com/repos/BND10706/THJLogParser/releases/latest";
+            using (var client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("THJPatcher/1.0");
+                var response = await client.GetAsync(apiUrl);
+                if (!response.IsSuccessStatusCode)
+                {
+                    StatusLibrary.Log("[LogParser] Could not check for latest log parser release.");
+                    return;
+                }
+                var json = await response.Content.ReadAsStringAsync();
+                var doc = System.Text.Json.JsonDocument.Parse(json);
+                var assets = doc.RootElement.GetProperty("assets");
+                string downloadUrl = null;
+                string md5Url = null;
+                string readmeUrl = null;
+
+                foreach (var asset in assets.EnumerateArray())
+                {
+                    var name = asset.GetProperty("name").GetString();
+                    if (name.Equals("THJLogParser.exe", StringComparison.OrdinalIgnoreCase))
+                        downloadUrl = asset.GetProperty("browser_download_url").GetString();
+                    else if (name.Equals("THJLogParser.exe.md5", StringComparison.OrdinalIgnoreCase))
+                        md5Url = asset.GetProperty("browser_download_url").GetString();
+                    else if (name.Equals("readme.txt", StringComparison.OrdinalIgnoreCase))
+                        readmeUrl = asset.GetProperty("browser_download_url").GetString();
+                }
+
+                if (downloadUrl == null || md5Url == null)
+                {
+                    StatusLibrary.Log("[LogParser] Could not find THJLogParser.exe or its .md5 in latest release.");
+                    return;
+                }
+
+                // Download the .md5 file
+                string remoteMd5 = null;
+                try
+                {
+                    remoteMd5 = (await client.GetStringAsync(md5Url)).Trim().ToLowerInvariant();
+                }
+                catch
+                {
+                    StatusLibrary.Log("[LogParser] Failed to download .md5 file.");
+                    return;
+                }
+
+                // Check if local file exists and compare MD5
+                bool needsDownload = true;
+                if (File.Exists(parserExe))
+                {
+                    try
+                    {
+                        string localMd5 = GetMD5(parserExe);
+                        if (localMd5 == remoteMd5)
+                        {
+                            needsDownload = false;
+                        }
+                    }
+                    catch
+                    {
+                        needsDownload = true;
+                    }
+                }
+
+                if (needsDownload)
+                {
+                    StatusLibrary.Log("[LogParser] Downloading latest THJLogParser.exe...");
+                    var exeBytes = await client.GetByteArrayAsync(downloadUrl);
+                    await File.WriteAllBytesAsync(parserExe, exeBytes);
+                    StatusLibrary.Log("[LogParser] THJLogParser.exe updated.");
+                }
+                else
+                {
+                    StatusLibrary.Log("[LogParser] THJLogParser.exe is up to date.");
+                }
+
+                // Download readme.txt if available (no MD5 verification needed)
+                if (readmeUrl != null)
+                {
+                    try
+                    {
+                        StatusLibrary.Log("[LogParser] Downloading readme.txt...");
+                        var readmeContent = await client.GetStringAsync(readmeUrl);
+                        await File.WriteAllTextAsync(readmeFile, readmeContent);
+                        StatusLibrary.Log("[LogParser] readme.txt downloaded.");
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusLibrary.Log($"[LogParser] Failed to download readme.txt: {ex.Message}");
+                        // Continue execution even if readme download fails
+                    }
+                }
+                else
+                {
+                    StatusLibrary.Log("[LogParser] No readme.txt found in release.");
+                }
             }
         }
     }
