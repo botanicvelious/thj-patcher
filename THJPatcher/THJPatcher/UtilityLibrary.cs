@@ -191,11 +191,11 @@ namespace THJPatcher
                     SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
 
                 // Hide the patcher application window
-                IntPtr patcherWindowHandle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
+                /* IntPtr patcherWindowHandle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
                 if (patcherWindowHandle != IntPtr.Zero)
                 {
                     ShowWindow(patcherWindowHandle, 0);
-                }
+                }*/
             }
 
             // Apply CPU affinity if enabled
